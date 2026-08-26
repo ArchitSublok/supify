@@ -1,5 +1,12 @@
 import { TrustBand } from './TrustBand'
 
+function formatValidity(value) {
+  if (!value) return 'Pending full audit'
+  const isExpired = new Date(value).getTime() < Date.now()
+  const formatter = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+  return (isExpired ? 'Expired ' : 'Valid until ') + formatter.format(new Date(value))
+}
+
 export function TrustPanel({ trust }) {
   if (!trust) return null
 
@@ -14,8 +21,8 @@ export function TrustPanel({ trust }) {
         </div>
         <div className="text-right">
           <span className="text-xs text-brand-mint block">Validity</span>
-          <span className="text-xs font-semibold text-white">
-            {trust.validUntil ? formatDate(trust.validUntil) : 'Pending full audit'}
+          <span className={`text-xs font-semibold ${trust.validUntil && new Date(trust.validUntil).getTime() < Date.now() ? 'text-brand-peach' : 'text-white'}`}>
+            {formatValidity(trust.validUntil)}
           </span>
         </div>
       </div>
@@ -61,12 +68,4 @@ export function TrustPanel({ trust }) {
       )}
     </div>
   )
-}
-
-function formatDate(value) {
-  try {
-    return new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
-  } catch (e) {
-    return value
-  }
 }

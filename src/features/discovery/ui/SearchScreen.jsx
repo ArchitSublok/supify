@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { SupplierCard } from '../../../entities/supplier/ui/SupplierCard'
 import { supplierRepository } from '../../../shared/api/supplierRepository'
 
-export function SearchScreen({ onOpenSupplier }) {
-  const [params, setParams] = useState(() => new URLSearchParams(window.location.search))
+export function SearchScreen({ onOpenSupplier = null }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const query = params.get('q') || ''
-  const band = params.get('band') || ''
-  const region = params.get('region') || 'All Regions'
-  const industry = params.get('industry') || 'All Industries'
-  const sortBy = params.get('sort') || 'relevance'
+  const query = searchParams.get('q') || ''
+  const band = searchParams.get('band') || ''
+  const region = searchParams.get('region') || 'All Regions'
+  const industry = searchParams.get('industry') || 'All Industries'
+  const sortBy = searchParams.get('sort') || 'relevance'
   const [extraFilter, setExtraFilter] = useState('')
 
   useEffect(() => {
@@ -31,10 +32,14 @@ export function SearchScreen({ onOpenSupplier }) {
         setSuppliers(res)
         setLoading(false)
       })
+      .catch(() => {
+        setSuppliers([])
+        setLoading(false)
+      })
   }, [query, band, region, industry, sortBy, extraFilter])
 
   function updateParams(next) {
-    const updated = new URLSearchParams(params)
+    const updated = new URLSearchParams(searchParams)
     Object.entries(next).forEach(([key, value]) => {
       if (value && value !== 'All Regions' && value !== 'All Industries' && value !== 'relevance') {
         updated.set(key, value)
@@ -42,14 +47,12 @@ export function SearchScreen({ onOpenSupplier }) {
         updated.delete(key)
       }
     })
-    const href = `/search${updated.toString() ? `?${updated}` : ''}`
-    window.history.pushState({}, '', href)
-    setParams(updated)
+    setSearchParams(updated)
   }
 
   const clearAllFilters = () => {
     setExtraFilter('')
-    updateParams({ q: '', band: '', region: 'All Regions', industry: 'All Industries', sort: 'relevance' })
+    setSearchParams({})
   }
 
   const hasActiveFilters = query || band || (region && region !== 'All Regions') || (industry && industry !== 'All Industries') || extraFilter
@@ -148,7 +151,7 @@ export function SearchScreen({ onOpenSupplier }) {
           <div className="w-full lg:w-auto">
             <button
               onClick={() => {}}
-              className="w-full lg:w-auto inline-flex items-center justify-center gap-xs font-button text-button text-on-primary bg-primary px-6 py-3 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap shadow-sm"
+              className="w-full lg:w-auto inline-flex items-center justify-center gap-xs font-button text-button text-on-primary bg-primary px-6 py-3 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap shadow-sm font-bold"
             >
               <span className="material-symbols-outlined text-sm">filter_list</span>
               Apply Filters
@@ -265,17 +268,6 @@ export function SearchScreen({ onOpenSupplier }) {
               className="font-button text-button bg-primary text-on-primary px-5 py-2.5 rounded-lg mt-2 font-bold"
             >
               Clear All Filters
-            </button>
-          </div>
-        )}
-
-        {suppliers.length > 0 && (
-          <div className="mt-xl flex justify-center">
-            <button
-              onClick={() => alert('All verified suppliers for your search criteria are currently loaded!')}
-              className="inline-flex items-center justify-center font-button text-button text-primary bg-surface-card border border-hairline px-6 py-3 rounded-lg hover:bg-surface-strong transition-colors shadow-sm"
-            >
-              Load More Suppliers
             </button>
           </div>
         )}

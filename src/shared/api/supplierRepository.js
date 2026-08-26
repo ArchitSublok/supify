@@ -1,9 +1,30 @@
 import { SupplierRepository } from './contract'
-import { supplierWires, verificationTaskWires } from './fixtures'
-import { toSupplier } from '../../entities/supplier/model/adapter'
+import { toSupplier, toVerificationTask } from '../../entities/supplier/model/adapter'
+
+const SUPPLIERS_URL = '/data/suppliers.json'
+const TASKS_URL = '/data/verification-tasks.json'
+const SIMULATED_LATENCY_MS = 200
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchJson(url) {
+  await delay(SIMULATED_LATENCY_MS)
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status} for ${url}`)
+  }
+  return response.json()
+}
+
+function findSupplierWire(supplierWires, supplierId) {
+  return supplierWires.find((supplier) => supplier.id === supplierId)
+}
 
 class FixtureSupplierRepository extends SupplierRepository {
   async search(filters = {}) {
+    const supplierWires = await fetchJson(SUPPLIERS_URL)
     const query = (filters.query || '').trim().toLowerCase()
     const band = filters.band || ''
     const region = filters.region || ''
@@ -11,8 +32,9 @@ class FixtureSupplierRepository extends SupplierRepository {
     const sortBy = filters.sortBy || 'relevance'
 
     let rows = supplierWires.filter((supplier) => {
-      const haystack = `${supplier.legal_name} ${supplier.trade_name} ${supplier.category} ${supplier.location} ${supplier.description} ${supplier.region} ${supplier.claims.map(c => c.label + ' ' + c.value).join(' ')}`.toLowerCase()
-      
+      const claimsStr = (supplier.claims || []).map((c) => c.label + ' ' + c.value).join(' ')
+      const haystack = `${supplier.legal_name} ${supplier.trade_name} ${supplier.category} ${supplier.location} ${supplier.description || ''} ${supplier.region || ''} ${claimsStr}`.toLowerCase()
+
       const matchesQuery = !query || haystack.includes(query)
       const matchesBand = !band || supplier.trust.band === band
       const matchesRegion = !region || region === 'All Regions' || supplier.region === region || supplier.location.toLowerCase().includes(region.toLowerCase())
@@ -39,26 +61,29 @@ class FixtureSupplierRepository extends SupplierRepository {
   }
 
   async getById(supplierId) {
-    const wire = supplierWires.find((supplier) => supplier.id === supplierId)
+    const supplierWires = await fetchJson(SUPPLIERS_URL)
+    const wire = findSupplierWire(supplierWires, supplierId)
     return wire ? toSupplier(wire) : null
   }
 
   async getVerificationQueue() {
-    return verificationTaskWires.map((task) => ({
-      ...task,
-      supplier: toSupplier(supplierWires.find((supplier) => supplier.id === task.supplier_id)),
-    }))
+    const [taskWires, supplierWires] = await Promise.all([
+      fetchJson(TASKS_URL),
+      fetchJson(SUPPLIERS_URL),
+    ])
+    return taskWires.map((taskWire) =>
+      toVerificationTask(taskWire, findSupplierWire(supplierWires, taskWire.supplier_id)),
+    )
   }
 
-  async approveTask(taskId) {
-    const task = verificationTaskWires.find(t => t.id === taskId)
-    if (task) {
-      task.state = 'approved'
-      return { success: true, taskId, state: 'approved' }
-    }
-    return { success: false }
+  async getVerificationTask(taskId) {
+    const [taskWires, supplierWires] = await Promise.all([
+      fetchJson(TASKS_URL),
+      fetchJson(SUPPLIERS_URL),
+    ])
+    const taskWire = taskWires.find((task) => task.id === taskId)
+    return taskWire ? toVerificationTask(taskWire, findSupplierWire(supplierWires, taskWire.supplier_id)) : null
   }
 }
 
-// Replace only this export when the database/API is ready.
 export const supplierRepository = new FixtureSupplierRepository()

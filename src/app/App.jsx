@@ -1,33 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { Header } from '../shared/ui/Header'
 import { Modal } from '../shared/ui/Modal'
 import { Toast } from '../shared/ui/Toast'
 import { LandingScreen } from '../features/landing/ui/LandingScreen'
 import { SearchScreen } from '../features/discovery/ui/SearchScreen'
+import { ComparisonScreen } from '../features/comparison/ui/ComparisonScreen'
 import { SupplierProfile } from '../features/supplier-profile/ui/SupplierProfile'
 import { VerificationDashboard } from '../features/verification-dashboard/ui/VerificationDashboard'
+import { VerificationTaskDetail } from '../features/verification-review/ui/VerificationTaskDetail'
 import { OnboardingScreen } from '../features/supplier-onboarding/ui/OnboardingScreen'
-
-function getPath() {
-  return window.location.pathname || '/'
-}
+import { NotFound } from './NotFound'
 
 export default function App() {
-  const [path, setPath] = useState(getPath)
+  const navigate = useNavigate()
+  const location = useLocation()
   const [toast, setToast] = useState(null)
   const [authModalMode, setAuthModalMode] = useState(null) // null | 'login' | 'signup'
-
-  useEffect(() => {
-    const sync = () => setPath(getPath())
-    window.addEventListener('popstate', sync)
-    return () => window.removeEventListener('popstate', sync)
-  }, [])
-
-  const navigate = (nextPath) => {
-    window.history.pushState({}, '', nextPath)
-    setPath(nextPath)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
@@ -36,55 +25,101 @@ export default function App() {
     }, 4000)
   }
 
-  let content
-  if (path.startsWith('/suppliers/')) {
-    const supplierId = path.split('/')[2]
-    content = (
-      <SupplierProfile
-        supplierId={supplierId}
-        onBack={() => navigate('/search')}
-        onShowToast={showToast}
-        onOpenVerification={() => navigate('/verification')}
-      />
-    )
-  } else if (path.startsWith('/verification') || path.startsWith('/verify')) {
-    content = (
-      <VerificationDashboard
-        onOpenSupplier={(id) => navigate(`/suppliers/${id}`)}
-        onShowToast={showToast}
-      />
-    )
-  } else if (path.startsWith('/supplier')) {
-    content = (
-      <OnboardingScreen
-        onShowToast={showToast}
-        onNavigate={navigate}
-      />
-    )
-  } else if (path.startsWith('/search') || path.startsWith('/solutions') || path.startsWith('/discovery')) {
-    content = (
-      <SearchScreen
-        onOpenSupplier={(id) => navigate(`/suppliers/${id}`)}
-      />
-    )
-  } else {
-    // Default to Landing Page
-    content = (
-      <LandingScreen
-        onNavigate={navigate}
-      />
-    )
+  const handleNavigate = (path) => {
+    navigate(path)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-on-background">
       <Header
-        currentPath={path}
-        onNavigate={navigate}
+        currentPath={location.pathname}
+        onNavigate={handleNavigate}
         onOpenAuth={(mode) => setAuthModalMode(mode)}
       />
 
-      {content}
+      <Routes>
+        <Route
+          path="/"
+          element={<LandingScreen onNavigate={handleNavigate} />}
+        />
+        <Route
+          path="/search"
+          element={<SearchScreen onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)} />}
+        />
+        <Route
+          path="/solutions"
+          element={<SearchScreen onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)} />}
+        />
+        <Route
+          path="/discovery"
+          element={<SearchScreen onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)} />}
+        />
+        <Route
+          path="/compare"
+          element={<ComparisonScreen />}
+        />
+        <Route
+          path="/suppliers/:supplierId"
+          element={
+            <SupplierProfile
+              onBack={() => handleNavigate('/search')}
+              onShowToast={showToast}
+              onOpenVerification={() => handleNavigate('/verification')}
+            />
+          }
+        />
+        <Route
+          path="/verification"
+          element={
+            <VerificationDashboard
+              onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)}
+              onShowToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/verify"
+          element={
+            <VerificationDashboard
+              onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)}
+              onShowToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/verifier/queue"
+          element={
+            <VerificationDashboard
+              onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)}
+              onShowToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/verifier/task/:taskId"
+          element={<VerificationTaskDetail />}
+        />
+        <Route
+          path="/supplier"
+          element={
+            <OnboardingScreen
+              onShowToast={showToast}
+              onNavigate={handleNavigate}
+            />
+          }
+        />
+        <Route
+          path="/supplier/onboarding"
+          element={
+            <OnboardingScreen
+              onShowToast={showToast}
+              onNavigate={handleNavigate}
+            />
+          }
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
 
       {/* Toast Notification */}
       {toast && (

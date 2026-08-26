@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const steps = [
   { id: 1, label: 'Organisation', detail: 'Your core company legal identity' },
@@ -7,7 +8,8 @@ const steps = [
   { id: 4, label: 'Review & Publish', detail: 'Submit for verification audit' },
 ]
 
-export function OnboardingScreen({ onShowToast, onNavigate }) {
+export function OnboardingScreen({ onShowToast = null, onNavigate = null }) {
+  const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState(() => {
     try {
@@ -44,10 +46,14 @@ export function OnboardingScreen({ onShowToast, onNavigate }) {
   const handleNext = () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1)
-      onShowToast?.(`Step ${currentStep} saved! Moving to Step ${currentStep + 1}.`)
+      if (onShowToast) onShowToast(`Step ${currentStep} saved! Moving to Step ${currentStep + 1}.`)
     } else {
-      onShowToast?.('Supplier profile submitted! Verification queue review ticket created.')
-      onNavigate?.('/search')
+      if (onShowToast) onShowToast('Supplier profile submitted! Verification queue review ticket created.')
+      if (onNavigate) {
+        onNavigate('/search')
+      } else {
+        navigate('/search')
+      }
     }
   }
 
@@ -57,74 +63,58 @@ export function OnboardingScreen({ onShowToast, onNavigate }) {
 
   return (
     <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-8 md:py-12">
-      {/* Intro Header */}
-      <section className="mb-8">
-        <span className="font-label-uppercase text-label-uppercase text-brand-teal bg-brand-mint/25 px-2.5 py-1 rounded font-bold border border-brand-teal/20">
-          Supplier Console · Onboarding
+      <div className="mb-8">
+        <span className="font-label-uppercase text-label-uppercase text-brand-teal font-bold block mb-1">
+          Supplier Workspace
         </span>
-        <h1 className="font-display-md text-display-md text-primary font-bold mt-2">
-          Build a profile buyers can understand.
-        </h1>
-        <p className="text-on-surface-variant font-body-md mt-1">
-          Your listing can be published before every claim is verified. We show what is established honestly.
+        <h1 className="font-display-md text-display-md text-primary font-bold">List Your Manufacturing Facility</h1>
+        <p className="text-body-md text-on-surface-variant">
+          Complete the 4-step onboarding wizard. Your draft is auto-saved locally in real time.
         </p>
-      </section>
+      </div>
 
-      {/* Onboarding Wizard Shell */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 border-2 border-primary rounded-2xl overflow-hidden bg-surface-card shadow-lg">
-        {/* Step Navigation Sidebar */}
-        <aside className="lg:col-span-4 p-6 bg-surface-strong/60 border-b lg:border-b-0 lg:border-r border-hairline flex flex-col gap-2">
-          <span className="text-xs font-bold text-body-muted uppercase tracking-wider mb-2">
-            Onboarding Progress
-          </span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left: Stepper Navigation */}
+        <div className="lg:col-span-4 flex flex-col gap-3">
           {steps.map((step) => {
-            const isActive = currentStep === step.id
             const isCompleted = currentStep > step.id
-
+            const isActive = currentStep === step.id
             return (
-              <button
+              <div
                 key={step.id}
                 onClick={() => setCurrentStep(step.id)}
-                className={`flex items-start gap-3 p-3.5 rounded-xl text-left transition-all ${
+                className={`p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-3.5 ${
                   isActive
-                    ? 'bg-primary text-on-primary font-bold shadow'
+                    ? 'bg-surface-card border-2 border-primary shadow-sm'
                     : isCompleted
-                    ? 'bg-brand-mint/20 text-brand-teal hover:bg-brand-mint/30'
-                    : 'text-body-muted hover:bg-surface-variant'
+                    ? 'bg-surface border-hairline hover:bg-surface-card'
+                    : 'bg-transparent border-hairline opacity-60'
                 }`}
               >
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 mt-0.5 ${
-                    isActive
-                      ? 'bg-white text-primary'
-                      : isCompleted
-                      ? 'bg-brand-teal text-white'
-                      : 'bg-surface border border-hairline text-body-muted'
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                    isCompleted
+                      ? 'bg-brand-mint text-brand-teal font-bold'
+                      : isActive
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-surface-strong text-body-muted'
                   }`}
                 >
                   {isCompleted ? '✓' : step.id}
                 </div>
-                <div>
-                  <strong className="block text-sm leading-tight">{step.label}</strong>
-                  <span className={`text-xs ${isActive ? 'text-white/80' : 'text-body-muted'}`}>
-                    {step.detail}
+                <div className="flex flex-col">
+                  <span className={`text-sm font-bold ${isActive ? 'text-primary' : 'text-body-muted'}`}>
+                    {step.label}
                   </span>
+                  <span className="text-xs text-on-surface-variant">{step.detail}</span>
                 </div>
-              </button>
+              </div>
             )
           })}
+        </div>
 
-          <div className="mt-auto pt-6 border-t border-hairline text-xs text-body-muted">
-            <div className="flex items-center gap-1.5 text-primary font-semibold mb-1">
-              <span className="material-symbols-outlined text-sm text-brand-teal">lock</span>
-              <span>Encrypted Draft Storage</span>
-            </div>
-            <span>No data lost on disconnect or page reload.</span>
-          </div>
-        </aside>
-
-        {/* Step Form Body */}
-        <div className="lg:col-span-8 p-6 md:p-10 flex flex-col">
+        {/* Right: Form Step Area */}
+        <div className="lg:col-span-8 bg-surface-card border border-hairline rounded-2xl p-6 md:p-8 shadow-sm">
           {currentStep === 1 && (
             <div className="flex flex-col gap-6 animate-fadeIn">
               <div>
@@ -132,73 +122,66 @@ export function OnboardingScreen({ onShowToast, onNavigate }) {
                   Step 1 of 4
                 </span>
                 <h2 className="font-title-lg text-title-lg text-primary font-bold">
-                  Tell buyers who you are
+                  Organisation &amp; Legal Identity
                 </h2>
                 <p className="text-body-sm text-on-surface-variant">
-                  These details establish the traceable foundation of your public supplier profile.
+                  Provide your registered corporate entity details.
                 </p>
               </div>
 
               <div className="flex flex-col gap-4">
                 <div>
                   <label className="block text-xs font-bold text-primary mb-1">
-                    Legal Organisation Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.legalName}
-                    onChange={(e) => handleChange('legalName', e.target.value)}
-                    className="w-full px-4 py-3 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-primary text-sm font-medium"
-                    placeholder="Registered legal corporate entity name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-primary mb-1">
-                    Trading / Brand Name *
+                    Trade / Display Name *
                   </label>
                   <input
                     type="text"
                     value={formData.tradeName}
                     onChange={(e) => handleChange('tradeName', e.target.value)}
                     className="w-full px-4 py-3 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-primary text-sm font-medium"
-                    placeholder="Brand name displayed to buyers"
+                    placeholder="e.g. Acme Precision Machining"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-primary mb-1">
+                    Full Legal Name (as per registration certificate) *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.legalName}
+                    onChange={(e) => handleChange('legalName', e.target.value)}
+                    className="w-full px-4 py-3 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-primary text-sm font-medium"
+                    placeholder="e.g. Acme Precision Machining Private Limited"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-primary mb-1">
-                      Primary Operating Facility Location *
+                      Operating City &amp; Region *
                     </label>
                     <input
                       type="text"
                       value={formData.location}
                       onChange={(e) => handleChange('location', e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-primary text-sm font-medium"
-                      placeholder="City, State, Country"
+                      placeholder="e.g. Pune, Maharashtra, IN"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-primary mb-1">
-                      Official Company Website
+                      Corporate Website
                     </label>
                     <input
-                      type="text"
+                      type="url"
                       value={formData.website}
                       onChange={(e) => handleChange('website', e.target.value)}
                       className="w-full px-4 py-3 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-primary text-sm font-medium"
-                      placeholder="https://yourcompany.com"
+                      placeholder="https://company.com"
                     />
                   </div>
                 </div>
-              </div>
-
-              <div className="p-4 bg-brand-peach/25 border-l-4 border-brand-ochre rounded-r-lg text-xs text-primary flex flex-col gap-1">
-                <strong className="font-bold">Why we ask for legal name</strong>
-                <span>
-                  Buyers need a traceable legal identity before they can evaluate any capability claim. You can pause and return anytime.
-                </span>
               </div>
             </div>
           )}
@@ -213,23 +196,23 @@ export function OnboardingScreen({ onShowToast, onNavigate }) {
                   Manufacturing Capabilities
                 </h2>
                 <p className="text-body-sm text-on-surface-variant">
-                  Specify manufacturing output, minimum order limits, and typical turnarounds.
+                  Specify your primary categories, capacities, and production terms.
                 </p>
               </div>
 
               <div className="flex flex-col gap-4">
                 <div>
                   <label className="block text-xs font-bold text-primary mb-1">
-                    Primary Industry / Category *
+                    Primary Sourcing Category *
                   </label>
                   <select
                     value={formData.category}
                     onChange={(e) => handleChange('category', e.target.value)}
                     className="w-full px-4 py-3 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-primary text-sm font-medium cursor-pointer"
                   >
-                    <option value="Sheet-metal fabrication">Sheet-metal fabrication</option>
-                    <option value="Industrial fasteners">Industrial fasteners</option>
-                    <option value="Precision machined parts">Precision machined parts</option>
+                    <option value="Sheet-metal fabrication">Sheet-metal Fabrication</option>
+                    <option value="Industrial fasteners">Industrial Fasteners</option>
+                    <option value="Precision machined parts">Precision Machined Parts</option>
                     <option value="Textiles">Textiles</option>
                     <option value="Packaging">Packaging</option>
                     <option value="Electronics">Electronics</option>

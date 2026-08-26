@@ -6,16 +6,37 @@
   :root {
     --canvas: #fffaf0;
     --ink: #0a0a0a;
+    --paper: #fbfcfa;
+    --muted: #6a6a6a;
+    --line: #e5e5e5;
+    --forest: #1a3a3a;
+    --lime: #a4d4c5;
+    --danger: #ba1a1a;
   }
   
   body {
     background-color: #fffaf0;
     color: #1c1b1b;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    min-width: 320px;
   }
 
   h1, h2, h3, .font-display {
     font-family: 'Rubik', sans-serif;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button, input, select {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
   }
 }
 
@@ -62,6 +83,15 @@
 .tactile-card-subtle:hover {
   transform: translateY(-1px);
   box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.9);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 /* Custom scrollbars */

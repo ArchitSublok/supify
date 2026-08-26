@@ -36,10 +36,10 @@ link. Drift between documents is worse than a missing document.
 | Problem framing | Settled — `docs/understanding.md` |
 | Domain & trust model | Settled — `docs/understanding.md` §3–§5 |
 | Frontend architecture | Settled — `docs/architecture.md` |
-| **Stack** | **Not chosen.** Do not assume one. |
+| **Stack** | **Chosen (Eval-1 scope):** Vite + React (JavaScript) + react-router-dom. Fixtures only, no backend/DB. Restricted to course topics through lecture 42. |
 | Database | Deferred. Modelled in `understanding.md` §3, not being built yet. |
 | Backend | Deferred. Frontend builds against a contract + fixtures. |
-| Code | Not started. |
+| Code | Eval-1 scope implemented — Vite + React + react-router-dom, fixtures over HTTP, four consoles, comparison and claim inspector. Backend still deferred. |
 
 Anything stack-dependent is marked `TBD` in the architecture doc. **Do not silently resolve a
 `TBD`.** Raise it.

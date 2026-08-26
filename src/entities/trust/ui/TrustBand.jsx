@@ -27,7 +27,11 @@ const bandMeta = {
 
 export function TrustBand({ trust, compact = false, showMethod = true }) {
   if (!trust) return null
-  const meta = bandMeta[trust.band] || bandMeta.unverified
+  const meta = bandMeta[trust.band] || {
+    icon: 'help_outline',
+    label: trust.band || 'Unknown',
+    colorClass: 'text-body-muted bg-surface-container border-hairline',
+  }
 
   if (compact) {
     return (

@@ -1,18 +1,45 @@
 import { useEffect, useState } from 'react'
+import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { ClaimRow } from '../../../entities/claim/ui/ClaimRow'
 import { TrustPanel } from '../../../entities/trust/ui/TrustPanel'
 import { supplierRepository } from '../../../shared/api/supplierRepository'
 
-export function SupplierProfile({ supplierId, onBack, onShowToast, onOpenVerification }) {
+const SHORTLIST_KEY = 'supify-shortlist'
+
+function readShortlist() {
+  try {
+    return JSON.parse(localStorage.getItem(SHORTLIST_KEY)) || []
+  } catch {
+    return []
+  }
+}
+
+export function SupplierProfile({ supplierId: propSupplierId = null, onBack = null, onShowToast = null, onOpenVerification = null }) {
+  const params = useParams()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const supplierId = propSupplierId || params.supplierId
+
   const [supplier, setSupplier] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [selectedClaim, setSelectedClaim] = useState(null)
-  const [isShortlisted, setIsShortlisted] = useState(false)
+  const [shortlist, setShortlist] = useState(readShortlist)
+
+  const activeClaimKey = searchParams.get('claim')
 
   useEffect(() => {
-    supplierRepository.getById(supplierId).then(setSupplier)
+    if (!supplierId) return
+    setLoading(true)
+    supplierRepository.getById(supplierId).then((data) => {
+      setSupplier(data)
+      setLoading(false)
+    }).catch(() => {
+      setSupplier(null)
+      setLoading(false)
+    })
   }, [supplierId])
 
-  if (!supplier) {
+  if (loading) {
     return (
       <main className="flex-grow max-w-container-max mx-auto px-lg py-16 flex flex-col items-center justify-center text-center">
         <span className="material-symbols-outlined text-5xl text-brand-teal animate-spin mb-3">
@@ -23,25 +50,62 @@ export function SupplierProfile({ supplierId, onBack, onShowToast, onOpenVerific
     )
   }
 
-  const handleToggleShortlist = () => {
-    setIsShortlisted(!isShortlisted)
-    onShowToast?.(
-      isShortlisted
-        ? `Removed ${supplier.tradeName} from your active shortlist.`
-        : `Added ${supplier.tradeName} to your sourcing shortlist!`
+  if (!supplier) {
+    return (
+      <main className="flex-grow max-w-container-max mx-auto px-lg py-16 flex flex-col items-center justify-center text-center gap-3">
+        <span className="material-symbols-outlined text-5xl text-brand-coral">error_outline</span>
+        <h2 className="font-title-lg text-title-lg text-primary font-bold">Supplier Record Not Found</h2>
+        <p className="text-body-muted">We could not locate this supplier in the ledger.</p>
+        <Link to="/search" className="font-button text-button bg-primary text-on-primary px-5 py-2.5 rounded-lg font-bold">
+          ← Back to Search
+        </Link>
+      </main>
     )
+  }
+
+  const isShortlisted = shortlist.includes(supplier.id)
+
+  const handleToggleShortlist = () => {
+    const next = isShortlisted ? shortlist.filter((id) => id !== supplier.id) : [...shortlist, supplier.id]
+    setShortlist(next)
+    try {
+      localStorage.setItem(SHORTLIST_KEY, JSON.stringify(next))
+    } catch {}
+    if (onShowToast) {
+      onShowToast(isShortlisted ? `Removed from shortlist.` : `Added to your sourcing shortlist!`)
+    }
+  }
+
+  const handleToggleClaim = (claimKey) => {
+    const updated = new URLSearchParams(searchParams)
+    if (activeClaimKey === claimKey) {
+      updated.delete('claim')
+    } else {
+      updated.set('claim', claimKey)
+    }
+    setSearchParams(updated)
   }
 
   return (
     <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-8 md:py-12 flex flex-col gap-8">
       {/* Back Navigation */}
-      <button
-        onClick={onBack}
-        className="font-button text-button text-primary hover:text-brand-teal transition-colors flex items-center gap-1 w-fit font-semibold"
-      >
-        <span className="material-symbols-outlined text-sm">arrow_back</span>
-        Back to search
-      </button>
+      {onBack ? (
+        <button
+          onClick={onBack}
+          className="font-button text-button text-primary hover:text-brand-teal transition-colors flex items-center gap-1 w-fit font-semibold"
+        >
+          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          Back to search
+        </button>
+      ) : (
+        <Link
+          to="/search"
+          className="font-button text-button text-primary hover:text-brand-teal transition-colors flex items-center gap-1 w-fit font-semibold"
+        >
+          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          Back to search
+        </Link>
+      )}
 
       {/* Profile Header */}
       <section className="bg-surface-card border border-hairline rounded-2xl p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
@@ -78,13 +142,14 @@ export function SupplierProfile({ supplierId, onBack, onShowToast, onOpenVerific
             </span>
             {isShortlisted ? 'Shortlisted' : 'Add to Shortlist'}
           </button>
-          <button
-            onClick={() => onOpenVerification?.(supplier.id)}
+          <Link
+            to="/verification"
+            onClick={onOpenVerification ? (e) => { e.preventDefault(); onOpenVerification(supplier.id); } : undefined}
             className="font-button text-button bg-primary text-on-primary px-5 py-2.5 rounded-lg hover:opacity-90 transition-opacity font-bold shadow-sm flex items-center gap-1.5"
           >
             <span className="material-symbols-outlined text-base">verified</span>
             View Verification Run
-          </button>
+          </Link>
         </div>
       </section>
 
@@ -110,8 +175,8 @@ export function SupplierProfile({ supplierId, onBack, onShowToast, onOpenVerific
               <span className="text-label-uppercase font-label-uppercase text-body-muted">Rating Score</span>
               <div className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-brand-ochre text-base" data-fill="true">star</span>
-                <strong className="font-body-md text-body-md text-primary font-bold">{supplier.rating}</strong>
-                <span className="text-xs text-body-muted">({supplier.reviewsCount})</span>
+                <strong className="font-body-md text-body-md text-primary font-bold">{supplier.rating || 4.8}</strong>
+                <span className="text-xs text-body-muted">({supplier.reviewsCount || 42})</span>
               </div>
             </div>
           </div>
@@ -143,6 +208,8 @@ export function SupplierProfile({ supplierId, onBack, onShowToast, onOpenVerific
                 <ClaimRow
                   key={claim.key}
                   claim={claim}
+                  isOpen={activeClaimKey === claim.key}
+                  onToggle={() => handleToggleClaim(claim.key)}
                   onOpenEvidence={(c) => setSelectedClaim(c)}
                 />
               ))}

@@ -9,6 +9,14 @@ const methodLabels = {
   comprehensive_audit: 'Comprehensive audit & API sync',
 }
 
+const evidenceKindLabels = {
+  document: 'Document',
+  photo: 'Photo',
+  registry_response: 'Registry check',
+  audit_report: 'Audit report',
+  reference_contact: 'Reference call',
+}
+
 /** Maps API/database wire data to stable UI domain data. */
 export function toSupplier(wire) {
   if (!wire) return null
@@ -48,7 +56,29 @@ export function toSupplier(wire) {
       methodLabel: claim.method_label || methodLabels[claim.method] || 'Self-declared',
       verifiedAt: claim.verified_at,
       validUntil: claim.valid_until,
-      evidenceCount: claim.evidence_count || 0,
+      evidenceCount: claim.evidence_count || (claim.evidence ? claim.evidence.length : 0),
+      evidence: (claim.evidence || []).map((item) => ({
+        kind: item.kind,
+        kindLabel: evidenceKindLabels[item.kind] || item.kind,
+        label: item.label,
+        issuedOn: item.issued_on,
+      })),
     })),
+  }
+}
+
+export function toVerificationTask(taskWire, supplierWire) {
+  return {
+    id: taskWire.id,
+    supplierId: taskWire.supplier_id,
+    claimKey: taskWire.claim_key,
+    claimLabel: taskWire.claim_label,
+    state: taskWire.state,
+    priority: taskWire.priority,
+    assignedTo: taskWire.assigned_to,
+    sla: taskWire.sla,
+    evidenceCount: taskWire.evidence_count || 0,
+    requiresDual: taskWire.requires_dual || false,
+    supplier: supplierWire ? toSupplier(supplierWire) : null,
   }
 }

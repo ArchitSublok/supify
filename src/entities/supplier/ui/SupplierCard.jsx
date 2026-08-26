@@ -1,13 +1,6 @@
-export function SupplierCard({ supplier, onOpen }) {
-  const themeClasses = {
-    'brand-teal': 'bg-brand-teal text-brand-teal',
-    'brand-pink': 'bg-brand-pink text-brand-pink',
-    'brand-ochre': 'bg-brand-ochre text-brand-ochre',
-    'brand-lavender': 'bg-brand-lavender text-primary',
-    'brand-peach': 'bg-brand-peach text-primary',
-    'brand-coral': 'bg-brand-coral text-brand-coral',
-  }
+import { Link } from 'react-router-dom'
 
+export function SupplierCard({ supplier, onOpen = null }) {
   const bgHeaderClass = {
     'brand-teal': 'bg-brand-teal',
     'brand-pink': 'bg-brand-pink',
@@ -65,9 +58,11 @@ export function SupplierCard({ supplier, onOpen }) {
               {supplier.category} · {supplier.location?.split(',')?.[0] || supplier.location}
             </span>
           </div>
-          <h3 className={`font-title-lg text-title-lg text-primary mb-xs transition-colors cursor-pointer ${textColorClass}`} onClick={() => onOpen(supplier.id)}>
-            {supplier.tradeName}
-          </h3>
+          <Link to={`/suppliers/${supplier.id}`} onClick={onOpen ? (e) => { e.preventDefault(); onOpen(supplier.id); } : undefined}>
+            <h3 className={`font-title-lg text-title-lg text-primary mb-xs transition-colors cursor-pointer ${textColorClass}`}>
+              {supplier.tradeName}
+            </h3>
+          </Link>
           <p className="text-body-sm font-body-sm text-body-muted line-clamp-2 mb-md">
             {supplier.description}
           </p>
@@ -92,12 +87,13 @@ export function SupplierCard({ supplier, onOpen }) {
             <span className="font-body-sm text-body-sm font-semibold text-primary">{supplier.rating || 4.8}</span>
             <span className="text-body-sm text-body-sm text-body-muted">({supplier.reviewsCount || 42})</span>
           </div>
-          <button
-            onClick={() => onOpen(supplier.id)}
+          <Link
+            to={`/suppliers/${supplier.id}`}
+            onClick={onOpen ? (e) => { e.preventDefault(); onOpen(supplier.id); } : undefined}
             className={`font-button text-button font-semibold hover:underline flex items-center gap-1 ${textColorClass}`}
           >
             View Profile <span className="material-symbols-outlined text-sm">arrow_forward</span>
-          </button>
+          </Link>
         </div>
       </div>
     </div>
