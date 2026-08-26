@@ -1,63 +1,57 @@
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supplierRepository } from '../../../shared/api/supplierRepository'
 import { TrustBand } from '../../../entities/trust/ui/TrustBand'
 
 export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const supplierIdParam = searchParams.get('supplier')
 
   const [activeStep, setActiveStep] = useState(2)
   const [tasks, setTasks] = useState([])
-  const [activeTab, setActiveTab] = useState(supplierIdParam ? 'run' : 'select')
+  const [activeTab, setActiveTab] = useState('run')
   const [selectedTask, setSelectedTask] = useState(null)
   const [approvedState, setApprovedState] = useState(false)
 
   // The supplier being verified (loaded dynamically)
   const [verifySupplier, setVerifySupplier] = useState(null)
-  const [supplierLoading, setSupplierLoading] = useState(false)
-
-  // All suppliers for the picker
-  const [allSuppliers, setAllSuppliers] = useState([])
-  const [pickLoading, setPickLoading] = useState(true)
+  const [supplierLoading, setSupplierLoading] = useState(true)
 
   const robotMascotImage = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAwzoOzYIQMDjWdJxGUBxuaoKW4vvGta2vTTqt7Z1U2cCYCEIl4mI0nXysZKnvlhATL3OlFL8dHcncrCt3MznFKjG8zwBQy9tLr4jf37D7AdRrl-8IAybYftYSETCzHB0l56zag0XyQ8Okvw9ZPkbJ7YxWVohMhU0vDfxNwaw9BxYqxVB_r1TxS5PZRkNwKwosRndYPLiaQj2I_fJrwT7MoWVOw8LPcHHL2IA0iCIohtgEYp2TPLf6n'
 
-  // Load all suppliers for the picker screen
+  // If no supplier is selected, redirect the user to the Solutions tab
   useEffect(() => {
-    setPickLoading(true)
-    supplierRepository.search({}).then((data) => {
-      setAllSuppliers(data)
-      setPickLoading(false)
-    }).catch(() => setPickLoading(false))
-  }, [])
+    if (!supplierIdParam) {
+      onShowToast?.('Please select a supplier from Solutions first to verify.', 'info')
+      navigate('/search?prompt=select_to_verify', { replace: true })
+      return
+    }
+
+    setSupplierLoading(true)
+    supplierRepository
+      .getById(supplierIdParam)
+      .then((data) => {
+        if (!data) {
+          onShowToast?.('Selected supplier not found in registry.', 'error')
+          navigate('/search', { replace: true })
+          return
+        }
+        setVerifySupplier(data)
+        setSupplierLoading(false)
+        setApprovedState(false)
+        setActiveStep(2)
+      })
+      .catch(() => {
+        setSupplierLoading(false)
+        navigate('/search', { replace: true })
+      })
+  }, [supplierIdParam, navigate])
 
   // Load verification queue tasks
   useEffect(() => {
     supplierRepository.getVerificationQueue().then(setTasks)
   }, [])
-
-  // If a supplier param is present in the URL, load that supplier directly
-  useEffect(() => {
-    if (supplierIdParam) {
-      setSupplierLoading(true)
-      supplierRepository.getById(supplierIdParam).then((data) => {
-        setVerifySupplier(data)
-        setSupplierLoading(false)
-        setActiveTab('run')
-        setApprovedState(false)
-        setActiveStep(2)
-      }).catch(() => setSupplierLoading(false))
-    }
-  }, [supplierIdParam])
-
-  const handleSelectSupplier = (supplier) => {
-    setVerifySupplier(supplier)
-    setActiveTab('run')
-    setApprovedState(false)
-    setActiveStep(0)
-    onShowToast?.(`Verification run initiated for ${supplier.tradeName}`)
-  }
 
   const handleApproveSupplier = () => {
     setApprovedState(true)
@@ -75,10 +69,21 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
     onShowToast?.(`Task ${taskId} verified and attestation issued!`)
   }
 
-  // Compute a dynamic score from supplier pillars
-  const overallScore = verifySupplier?.trust?.pillars?.length
-    ? Math.round(verifySupplier.trust.pillars.reduce((sum, p) => sum + p.score, 0) / verifySupplier.trust.pillars.length)
-    : 0
+  if (supplierLoading || !verifySupplier) {
+    return (
+      <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-16 flex flex-col items-center justify-center text-center">
+        <span className="material-symbols-outlined text-5xl text-brand-teal animate-spin mb-3">
+          progress_activity
+        </span>
+        <p className="text-body-muted font-medium">Loading verification dossier...</p>
+      </main>
+    )
+  }
+
+  // Compute dynamic score from supplier pillars or rating
+  const overallScore = verifySupplier?.trust?.overallScore || (verifySupplier?.trust?.pillars?.length
+    ? Math.round(verifySupplier.trust.pillars.reduce((sum, p) => sum + (p.score ?? (Array.isArray(p) ? p[1] : 0)), 0) / verifySupplier.trust.pillars.length)
+    : Math.round((verifySupplier.rating || 4.5) * 20))
 
   return (
     <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-8 md:py-12 pb-section">
@@ -95,24 +100,10 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
 
         <div className="flex gap-2 bg-surface-card p-1.5 rounded-xl border border-hairline">
           <button
-            onClick={() => setActiveTab('select')}
-            className={`font-button text-button px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 ${
-              activeTab === 'select'
-                ? 'bg-primary text-on-primary font-bold shadow'
-                : 'text-primary hover:bg-surface-variant'
-            }`}
-          >
-            <span className="material-symbols-outlined text-sm">factory</span>
-            Select Supplier
-          </button>
-          <button
-            onClick={() => { if (verifySupplier) setActiveTab('run') }}
-            disabled={!verifySupplier}
+            onClick={() => setActiveTab('run')}
             className={`font-button text-button px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-1.5 ${
               activeTab === 'run'
                 ? 'bg-primary text-on-primary font-bold shadow'
-                : !verifySupplier
-                ? 'text-body-muted cursor-not-allowed opacity-50'
                 : 'text-primary hover:bg-surface-variant'
             }`}
           >
@@ -133,81 +124,8 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
         </div>
       </div>
 
-      {/* ─── TAB: Select Supplier ─── */}
-      {activeTab === 'select' && (
-        <div className="flex flex-col gap-6">
-          <div>
-            <h2 className="font-title-lg text-title-lg text-primary font-bold">Choose a Supplier to Verify</h2>
-            <p className="text-body-muted text-sm mt-1">
-              Select a supplier from your discovery results to initiate a multi-point verification run.
-            </p>
-          </div>
-
-          {pickLoading ? (
-            <div className="p-12 text-center bg-surface-card rounded-xl border border-hairline text-body-muted">
-              <span className="material-symbols-outlined text-4xl animate-spin mb-2">progress_activity</span>
-              <p>Loading supplier registry...</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-lg">
-              {allSuppliers.map((supplier) => {
-                const isSelected = verifySupplier?.id === supplier.id
-                const bgColor = {
-                  'brand-teal': 'bg-brand-teal',
-                  'brand-pink': 'bg-brand-pink',
-                  'brand-ochre': 'bg-brand-ochre',
-                  'brand-lavender': 'bg-brand-lavender',
-                  'brand-peach': 'bg-brand-peach',
-                  'brand-coral': 'bg-brand-coral',
-                }[supplier.themeColor] || 'bg-brand-teal'
-
-                return (
-                  <button
-                    key={supplier.id}
-                    onClick={() => handleSelectSupplier(supplier)}
-                    className={`text-left bg-surface-card border rounded-xl overflow-hidden transition-all duration-200 hover:shadow-md group ${
-                      isSelected ? 'border-2 border-brand-teal ring-2 ring-brand-teal/30 shadow-lg' : 'border-hairline hover:border-outline'
-                    }`}
-                  >
-                    <div className={`h-16 ${bgColor} relative overflow-hidden`}>
-                      <div className="absolute inset-0 opacity-20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSI+PC9yZWN0Pgo8cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxIiBzdHJva2Utb3BhY2l0eT0iMC4yIi8+Cjwvc3ZnPg==')]"></div>
-                      {isSelected && (
-                        <div className="absolute top-2 right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow">
-                          <span className="material-symbols-outlined text-brand-teal text-sm" data-fill="true">check_circle</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-semibold text-body-muted uppercase tracking-wider">
-                          {supplier.category}
-                        </span>
-                        <TrustBand trust={supplier.trust} compact />
-                      </div>
-                      <h3 className="font-title-md text-title-md text-primary font-bold group-hover:text-brand-teal transition-colors">
-                        {supplier.tradeName}
-                      </h3>
-                      <p className="text-xs text-body-muted mt-0.5 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-xs">location_on</span>
-                        {supplier.location}
-                      </p>
-                      <div className="mt-3 pt-2 border-t border-hairline flex justify-between items-center text-xs">
-                        <span className="text-body-muted">{supplier.claims?.filter(c => c.state === 'verified').length || 0} verified claims</span>
-                        <span className="font-button text-button text-brand-teal font-bold flex items-center gap-0.5">
-                          Start Verification <span className="material-symbols-outlined text-xs">arrow_forward</span>
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ─── TAB: Live Verification Run ─── */}
-      {activeTab === 'run' && verifySupplier && (
+      {activeTab === 'run' && (
         <div className="flex flex-col gap-8">
           {/* Header & Actions */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
@@ -232,13 +150,13 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
             </div>
 
             <div className="flex gap-xs flex-wrap">
-              <button
-                onClick={() => { setActiveTab('select'); setVerifySupplier(null); setApprovedState(false) }}
+              <Link
+                to="/search"
                 className="font-button text-button bg-surface-card border border-hairline text-primary rounded-lg px-4 py-2.5 hover:border-primary transition-colors flex items-center gap-1 font-semibold"
               >
                 <span className="material-symbols-outlined text-base">swap_horiz</span>
-                Change Supplier
-              </button>
+                Switch Supplier
+              </Link>
               <button
                 onClick={handleDownloadPDF}
                 className="font-button text-button bg-surface-card border border-hairline text-primary rounded-lg px-4 py-2.5 hover:border-primary transition-colors flex items-center gap-1 font-semibold"
