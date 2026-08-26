@@ -1,67 +1,175 @@
-import { useContext } from 'react'
-import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { Header } from '../shared/ui/Header'
+import { Modal } from '../shared/ui/Modal'
+import { Toast } from '../shared/ui/Toast'
+import { LandingScreen } from '../features/landing/ui/LandingScreen'
 import { SearchScreen } from '../features/discovery/ui/SearchScreen'
 import { ComparisonScreen } from '../features/comparison/ui/ComparisonScreen'
 import { SupplierProfile } from '../features/supplier-profile/ui/SupplierProfile'
-import { OnboardingScreen } from '../features/supplier-onboarding/ui/OnboardingScreen'
-import { OnboardingStep } from '../features/supplier-onboarding/ui/OnboardingStep'
-import { VerificationQueue } from '../features/verification-review/ui/VerificationQueue'
+import { VerificationDashboard } from '../features/verification-dashboard/ui/VerificationDashboard'
 import { VerificationTaskDetail } from '../features/verification-review/ui/VerificationTaskDetail'
-import { ProtectedRoute } from './ProtectedRoute'
+import { OnboardingScreen } from '../features/supplier-onboarding/ui/OnboardingScreen'
 import { NotFound } from './NotFound'
-import { UserRoleContext, roleLabels } from '../entities/user/model/UserRoleContext'
 
 export default function App() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [toast, setToast] = useState(null)
+  const [authModalMode, setAuthModalMode] = useState(null) // null | 'login' | 'signup'
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => {
+      setToast(null)
+    }, 4000)
+  }
+
+  const handleNavigate = (path) => {
+    navigate(path)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return (
-    <>
-      <Header />
+    <div className="flex flex-col min-h-screen bg-background text-on-background">
+      <Header
+        currentPath={location.pathname}
+        onNavigate={handleNavigate}
+        onOpenAuth={(mode) => setAuthModalMode(mode)}
+      />
+
       <Routes>
-        <Route path="/" element={<Navigate to="/search" replace />} />
-        <Route path="/search" element={<SearchScreen />} />
-        <Route path="/compare" element={<ComparisonScreen />} />
-        <Route path="/suppliers/:supplierId" element={<SupplierProfile />} />
-        <Route path="/supplier/onboarding" element={<ProtectedRoute requiredRole="supplier"><OnboardingScreen /></ProtectedRoute>}>
-          <Route index element={<Navigate to="organisation" replace />} />
-          <Route path=":step" element={<OnboardingStep />} />
-        </Route>
-        <Route path="/verify" element={<ProtectedRoute requiredRole="verifier"><Outlet /></ProtectedRoute>}>
-          <Route index element={<Navigate to="queue" replace />} />
-          <Route path="queue" element={<VerificationQueue />} />
-          <Route path="tasks/:taskId" element={<VerificationTaskDetail />} />
-        </Route>
+        <Route
+          path="/"
+          element={<LandingScreen onNavigate={handleNavigate} />}
+        />
+        <Route
+          path="/search"
+          element={<SearchScreen onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)} />}
+        />
+        <Route
+          path="/solutions"
+          element={<SearchScreen onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)} />}
+        />
+        <Route
+          path="/discovery"
+          element={<SearchScreen onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)} />}
+        />
+        <Route
+          path="/compare"
+          element={<ComparisonScreen />}
+        />
+        <Route
+          path="/suppliers/:supplierId"
+          element={
+            <SupplierProfile
+              onBack={() => handleNavigate('/search')}
+              onShowToast={showToast}
+              onOpenVerification={() => handleNavigate('/verification')}
+            />
+          }
+        />
+        <Route
+          path="/verification"
+          element={
+            <VerificationDashboard
+              onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)}
+              onShowToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/verify"
+          element={
+            <VerificationDashboard
+              onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)}
+              onShowToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/verifier/queue"
+          element={
+            <VerificationDashboard
+              onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)}
+              onShowToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/verifier/task/:taskId"
+          element={<VerificationTaskDetail />}
+        />
+        <Route
+          path="/supplier"
+          element={
+            <OnboardingScreen
+              onShowToast={showToast}
+              onNavigate={handleNavigate}
+            />
+          }
+        />
+        <Route
+          path="/supplier/onboarding"
+          element={
+            <OnboardingScreen
+              onShowToast={showToast}
+              onNavigate={handleNavigate}
+            />
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </>
-  )
-}
 
-function Header() {
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
-  const session = useContext(UserRoleContext)
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
 
-  const active = pathname.startsWith('/verify')
-    ? 'verifier'
-    : pathname.startsWith('/supplier')
-      ? 'supplier'
-      : 'buyer'
-
-  return (
-    <header className="site-header">
-      <Link className="brand" to="/search"><span aria-hidden="true">◈</span> supify</Link>
-      <nav aria-label="Primary navigation">
-        <button className={active === 'buyer' ? 'active' : ''} onClick={() => navigate('/search')}>Discover</button>
-        <button className={active === 'supplier' ? 'active' : ''} onClick={() => navigate('/supplier/onboarding')}>Supplier workspace</button>
-        <button className={active === 'verifier' ? 'active' : ''} onClick={() => navigate('/verify/queue')}>Verifier queue</button>
-      </nav>
-      <button
-        className="profile-button"
-        onClick={session.cycleRole}
-        title={`Active role: ${roleLabels[session.role]} — click to switch`}
-        aria-label={`Active role: ${roleLabels[session.role]}. Click to switch role.`}
+      {/* Auth Modal */}
+      <Modal
+        isOpen={!!authModalMode}
+        onClose={() => setAuthModalMode(null)}
+        title={authModalMode === 'login' ? 'Log In to Supify' : 'Create Supify Account'}
       >
-        {session.role.slice(0, 2).toUpperCase()}
-      </button>
-    </header>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            setAuthModalMode(null)
+            showToast(`Welcome back to Supify!`)
+          }}
+          className="flex flex-col gap-4 text-sm"
+        >
+          <div>
+            <label className="block text-xs font-bold text-primary mb-1">Work Email</label>
+            <input
+              required
+              type="email"
+              placeholder="procurement@enterprise.com"
+              className="w-full px-3.5 py-2.5 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary text-primary"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-primary mb-1">Password</label>
+            <input
+              required
+              type="password"
+              placeholder="••••••••••••"
+              className="w-full px-3.5 py-2.5 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary text-primary"
+            />
+          </div>
+          <button
+            type="submit"
+            className="font-button text-button bg-primary text-on-primary py-3 rounded-xl hover:opacity-90 font-bold shadow-md mt-2"
+          >
+            {authModalMode === 'login' ? 'Log In' : 'Sign Up Free'}
+          </button>
+        </form>
+      </Modal>
+    </div>
   )
 }

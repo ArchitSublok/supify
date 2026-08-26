@@ -3,7 +3,7 @@ import { toSupplier, toVerificationTask } from '../../entities/supplier/model/ad
 
 const SUPPLIERS_URL = '/data/suppliers.json'
 const TASKS_URL = '/data/verification-tasks.json'
-const SIMULATED_LATENCY_MS = 450
+const SIMULATED_LATENCY_MS = 200
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -27,12 +27,37 @@ class FixtureSupplierRepository extends SupplierRepository {
     const supplierWires = await fetchJson(SUPPLIERS_URL)
     const query = (filters.query || '').trim().toLowerCase()
     const band = filters.band || ''
-    return supplierWires
-      .filter((supplier) => {
-        const haystack = `${supplier.legal_name} ${supplier.trade_name} ${supplier.category} ${supplier.location}`.toLowerCase()
-        return (!query || haystack.includes(query)) && (!band || supplier.trust.band === band)
+    const region = filters.region || ''
+    const industry = filters.industry || ''
+    const sortBy = filters.sortBy || 'relevance'
+
+    let rows = supplierWires.filter((supplier) => {
+      const claimsStr = (supplier.claims || []).map((c) => c.label + ' ' + c.value).join(' ')
+      const haystack = `${supplier.legal_name} ${supplier.trade_name} ${supplier.category} ${supplier.location} ${supplier.description || ''} ${supplier.region || ''} ${claimsStr}`.toLowerCase()
+
+      const matchesQuery = !query || haystack.includes(query)
+      const matchesBand = !band || supplier.trust.band === band
+      const matchesRegion = !region || region === 'All Regions' || supplier.region === region || supplier.location.toLowerCase().includes(region.toLowerCase())
+      const matchesIndustry = !industry || industry === 'All Industries' || supplier.category.toLowerCase().includes(industry.toLowerCase())
+
+      return matchesQuery && matchesBand && matchesRegion && matchesIndustry
+    })
+
+    if (sortBy === 'rating') {
+      rows.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    } else if (sortBy === 'leadTime') {
+      rows.sort((a, b) => {
+        const getDays = (str) => parseInt(str) || 999
+        return getDays(a.lead_time) - getDays(b.lead_time)
       })
-      .map(toSupplier)
+    } else if (sortBy === 'moq') {
+      rows.sort((a, b) => {
+        const getNum = (str) => parseInt((str || '').replace(/[^0-9]/g, '')) || 999999
+        return getNum(a.moq) - getNum(b.moq)
+      })
+    }
+
+    return rows.map(toSupplier)
   }
 
   async getById(supplierId) {
