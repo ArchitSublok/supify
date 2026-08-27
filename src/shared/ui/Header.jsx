@@ -5,8 +5,8 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
 
   const navItems = [
     { label: 'Platform', path: '/', isActive: currentPath === '/' || currentPath === '/platform' },
-    { label: 'Verification', path: '/verification', isActive: currentPath.startsWith('/verification') || currentPath.startsWith('/verify') },
     { label: 'Solutions', path: '/search', isActive: currentPath.startsWith('/search') || currentPath.startsWith('/solutions') || currentPath.startsWith('/suppliers') },
+    { label: 'Verification', path: '/verification', isActive: currentPath.startsWith('/verification') || currentPath.startsWith('/verify') },
     { label: 'Supplier Workspace', path: '/supplier/onboarding', isActive: currentPath.startsWith('/supplier') },
   ]
 

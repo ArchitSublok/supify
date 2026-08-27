@@ -143,7 +143,7 @@ export function SupplierProfile({ supplierId: propSupplierId = null, onBack = nu
             {isShortlisted ? 'Shortlisted' : 'Add to Shortlist'}
           </button>
           <Link
-            to="/verification"
+            to={`/verification?supplier=${supplier.id}`}
             onClick={onOpenVerification ? (e) => { e.preventDefault(); onOpenVerification(supplier.id); } : undefined}
             className="font-button text-button bg-primary text-on-primary px-5 py-2.5 rounded-lg hover:opacity-90 transition-opacity font-bold shadow-sm flex items-center gap-1.5"
           >

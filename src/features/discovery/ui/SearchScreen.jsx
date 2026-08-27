@@ -13,6 +13,7 @@ export function SearchScreen({ onOpenSupplier = null }) {
   const region = searchParams.get('region') || 'All Regions'
   const industry = searchParams.get('industry') || 'All Industries'
   const sortBy = searchParams.get('sort') || 'relevance'
+  const isSelectToVerifyPrompt = searchParams.get('prompt') === 'select_to_verify'
   const [extraFilter, setExtraFilter] = useState('')
 
   useEffect(() => {
@@ -40,6 +41,8 @@ export function SearchScreen({ onOpenSupplier = null }) {
 
   function updateParams(next) {
     const updated = new URLSearchParams(searchParams)
+    // Remove prompt parameter on user interaction
+    updated.delete('prompt')
     Object.entries(next).forEach(([key, value]) => {
       if (value && value !== 'All Regions' && value !== 'All Industries' && value !== 'relevance') {
         updated.set(key, value)
@@ -58,13 +61,38 @@ export function SearchScreen({ onOpenSupplier = null }) {
   const hasActiveFilters = query || band || (region && region !== 'All Regions') || (industry && industry !== 'All Industries') || extraFilter
 
   return (
-    <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-8 md:py-12 flex flex-col gap-10">
+    <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-8 md:py-12 flex flex-col gap-8">
+      {/* Informative Banner when user clicked Verification tab without selecting a supplier */}
+      {isSelectToVerifyPrompt && (
+        <div className="bg-brand-mint/25 border-2 border-brand-teal/30 rounded-2xl p-4 md:p-5 flex items-center justify-between gap-4 shadow-sm animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-teal text-on-primary flex items-center justify-center flex-shrink-0 shadow-sm">
+              <span className="material-symbols-outlined text-xl" data-fill="true">verified</span>
+            </div>
+            <div>
+              <h3 className="font-title-md text-sm md:text-base font-bold text-primary">
+                Select a Supplier to Run Verification
+              </h3>
+              <p className="text-xs text-on-surface-variant">
+                Browse our verified partner solutions below and click <strong className="text-brand-teal font-bold">"Verify"</strong> on any card to view their live audit run.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => updateParams({})}
+            className="text-primary hover:bg-black/5 p-1.5 rounded-lg transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Header & Subtitle */}
       <section className="flex flex-col gap-lg">
         <div className="flex flex-col md:flex-row gap-md items-start md:items-center justify-between">
           <div>
-            <h1 className="font-display-md text-display-md text-primary mb-xs font-bold">Find Suppliers</h1>
-            <p className="text-body-muted font-body-md text-body-md">Discover verified partners for your supply chain.</p>
+            <h1 className="font-display-md text-display-md text-primary mb-xs font-bold">Supplier Solutions</h1>
+            <p className="text-body-muted font-body-md text-body-md">Discover verified partners for your supply chain with transparent trust ratings.</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-body-muted">Standing:</span>
@@ -197,7 +225,7 @@ export function SearchScreen({ onOpenSupplier = null }) {
           <button
             onClick={() => setExtraFilter(extraFilter === 'iso_9001' ? '' : 'iso_9001')}
             className={`inline-flex items-center gap-1 px-3 py-1 rounded-full font-medium transition-colors ${
-              extraFilter === 'iso_9001' ? 'bg-primary text-on-primary' : 'bg-surface-strong text-primary hover:bg-surface-variant'
+              extraFilter === 'iso_9001' ? 'bg-primary text-on-primary font-bold' : 'bg-surface-strong text-primary hover:bg-surface-variant'
             }`}
           >
             <span>ISO 9001</span>
@@ -206,7 +234,7 @@ export function SearchScreen({ onOpenSupplier = null }) {
           <button
             onClick={() => setExtraFilter(extraFilter === 'lead_time_fast' ? '' : 'lead_time_fast')}
             className={`inline-flex items-center gap-1 px-3 py-1 rounded-full font-medium transition-colors ${
-              extraFilter === 'lead_time_fast' ? 'bg-primary text-on-primary' : 'bg-surface-strong text-primary hover:bg-surface-variant'
+              extraFilter === 'lead_time_fast' ? 'bg-primary text-on-primary font-bold' : 'bg-surface-strong text-primary hover:bg-surface-variant'
             }`}
           >
             <span>Lead Time &lt; 14 days</span>
@@ -224,11 +252,11 @@ export function SearchScreen({ onOpenSupplier = null }) {
         </div>
       </section>
 
-      {/* Results Grid Section */}
+      {/* Results Grid Section - ordered uniform grid */}
       <section>
-        <div className="mb-md flex justify-between items-center">
+        <div className="mb-4 flex justify-between items-center">
           <p className="text-body-md font-body-md text-body-muted font-medium">
-            Showing <strong className="text-primary font-bold">{suppliers.length}</strong> verified suppliers
+            Showing <strong className="text-primary font-bold">{suppliers.length}</strong> verified supplier solutions
           </p>
           <div className="flex items-center gap-xs">
             <span className="text-body-sm font-body-sm text-body-muted">Sort by:</span>
@@ -246,12 +274,12 @@ export function SearchScreen({ onOpenSupplier = null }) {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center bg-surface-card rounded-xl border border-hairline text-body-muted">
+          <div className="p-12 text-center bg-surface-card rounded-2xl border border-hairline text-body-muted">
             <span className="material-symbols-outlined text-4xl animate-spin mb-2">progress_activity</span>
             <p>Scanning verified supplier records...</p>
           </div>
         ) : suppliers.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
             {suppliers.map((supplier) => (
               <SupplierCard key={supplier.id} supplier={supplier} onOpen={onOpenSupplier} />
             ))}

@@ -1,23 +1,61 @@
 import { useEffect, useState } from 'react'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supplierRepository } from '../../../shared/api/supplierRepository'
 import { TrustBand } from '../../../entities/trust/ui/TrustBand'
 
 export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
-  const [activeStep, setActiveStep] = useState(2) // 0: Identity, 1: Watchlists, 2: Financial, 3: ESG
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const supplierIdParam = searchParams.get('supplier')
+
+  const [activeStep, setActiveStep] = useState(2)
   const [tasks, setTasks] = useState([])
-  const [activeTab, setActiveTab] = useState('run') // 'run' or 'queue'
+  const [activeTab, setActiveTab] = useState('run')
   const [selectedTask, setSelectedTask] = useState(null)
   const [approvedState, setApprovedState] = useState(false)
 
+  // The supplier being verified (loaded dynamically)
+  const [verifySupplier, setVerifySupplier] = useState(null)
+  const [supplierLoading, setSupplierLoading] = useState(true)
+
   const robotMascotImage = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAwzoOzYIQMDjWdJxGUBxuaoKW4vvGta2vTTqt7Z1U2cCYCEIl4mI0nXysZKnvlhATL3OlFL8dHcncrCt3MznFKjG8zwBQy9tLr4jf37D7AdRrl-8IAybYftYSETCzHB0l56zag0XyQ8Okvw9ZPkbJ7YxWVohMhU0vDfxNwaw9BxYqxVB_r1TxS5PZRkNwKwosRndYPLiaQj2I_fJrwT7MoWVOw8LPcHHL2IA0iCIohtgEYp2TPLf6n'
 
+  // If no supplier is selected, redirect the user to the Solutions tab
+  useEffect(() => {
+    if (!supplierIdParam) {
+      onShowToast?.('Please select a supplier from Solutions first to verify.', 'info')
+      navigate('/search?prompt=select_to_verify', { replace: true })
+      return
+    }
+
+    setSupplierLoading(true)
+    supplierRepository
+      .getById(supplierIdParam)
+      .then((data) => {
+        if (!data) {
+          onShowToast?.('Selected supplier not found in registry.', 'error')
+          navigate('/search', { replace: true })
+          return
+        }
+        setVerifySupplier(data)
+        setSupplierLoading(false)
+        setApprovedState(false)
+        setActiveStep(2)
+      })
+      .catch(() => {
+        setSupplierLoading(false)
+        navigate('/search', { replace: true })
+      })
+  }, [supplierIdParam, navigate])
+
+  // Load verification queue tasks
   useEffect(() => {
     supplierRepository.getVerificationQueue().then(setTasks)
   }, [])
 
   const handleApproveSupplier = () => {
     setApprovedState(true)
-    onShowToast?.('Supplier verification run #SV-9921A approved and appended to immutable ledger!')
+    onShowToast?.(`Supplier verification for ${verifySupplier?.tradeName} approved and appended to immutable ledger!`)
   }
 
   const handleDownloadPDF = () => {
@@ -26,12 +64,26 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
   }
 
   const handleApproveTask = (taskId) => {
-    supplierRepository.approveTask(taskId).then(() => {
-      setTasks(tasks.map(t => t.id === taskId ? { ...t, state: 'approved' } : t))
-      setSelectedTask(null)
-      onShowToast?.(`Task ${taskId} verified and attestation issued!`)
-    })
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, state: 'approved' } : t))
+    setSelectedTask(null)
+    onShowToast?.(`Task ${taskId} verified and attestation issued!`)
   }
+
+  if (supplierLoading || !verifySupplier) {
+    return (
+      <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-16 flex flex-col items-center justify-center text-center">
+        <span className="material-symbols-outlined text-5xl text-brand-teal animate-spin mb-3">
+          progress_activity
+        </span>
+        <p className="text-body-muted font-medium">Loading verification dossier...</p>
+      </main>
+    )
+  }
+
+  // Compute dynamic score from supplier pillars or rating
+  const overallScore = verifySupplier?.trust?.overallScore || (verifySupplier?.trust?.pillars?.length
+    ? Math.round(verifySupplier.trust.pillars.reduce((sum, p) => sum + (p.score ?? (Array.isArray(p) ? p[1] : 0)), 0) / verifySupplier.trust.pillars.length)
+    : Math.round((verifySupplier.rating || 4.5) * 20))
 
   return (
     <main className="flex-grow w-full max-w-container-max mx-auto px-lg py-8 md:py-12 pb-section">
@@ -72,14 +124,15 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
         </div>
       </div>
 
-      {activeTab === 'run' ? (
+      {/* ─── TAB: Live Verification Run ─── */}
+      {activeTab === 'run' && (
         <div className="flex flex-col gap-8">
           {/* Header & Actions */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="font-label-uppercase text-label-uppercase text-brand-teal bg-brand-mint/25 px-2.5 py-1 rounded font-bold border border-brand-teal/20">
-                  Verification Run ID: #SV-9921A
+                  Verification Run ID: #SV-{verifySupplier.id.slice(0, 4).toUpperCase()}
                 </span>
                 {approvedState && (
                   <span className="font-label-uppercase text-label-uppercase bg-brand-teal text-on-primary px-2.5 py-1 rounded font-bold flex items-center gap-1">
@@ -89,14 +142,21 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
                 )}
               </div>
               <h2 className="font-display-md text-display-md text-primary font-bold">
-                Acme Corp Global
+                {verifySupplier.tradeName}
               </h2>
               <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-                Initiated by Sarah Jenkins (Senior Lead Verifier) on Aug 24, 2026
+                {verifySupplier.category} · {verifySupplier.location}
               </p>
             </div>
 
             <div className="flex gap-xs flex-wrap">
+              <Link
+                to="/search"
+                className="font-button text-button bg-surface-card border border-hairline text-primary rounded-lg px-4 py-2.5 hover:border-primary transition-colors flex items-center gap-1 font-semibold"
+              >
+                <span className="material-symbols-outlined text-base">swap_horiz</span>
+                Switch Supplier
+              </Link>
               <button
                 onClick={handleDownloadPDF}
                 className="font-button text-button bg-surface-card border border-hairline text-primary rounded-lg px-4 py-2.5 hover:border-primary transition-colors flex items-center gap-1 font-semibold"
@@ -122,62 +182,43 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
           {/* Progress Stepper */}
           <div className="bg-surface-card border border-hairline rounded-xl p-lg flex flex-col md:flex-row justify-between items-center relative shadow-sm">
             <div className="hidden md:block absolute top-1/2 left-lg right-lg h-0.5 bg-hairline -z-0 -translate-y-1/2"></div>
-            
-            {/* Step 1: Identity */}
-            <button
-              onClick={() => setActiveStep(0)}
-              className={`flex flex-col items-center z-10 bg-surface-card px-md mb-md md:mb-0 cursor-pointer rounded-lg p-2 transition-all ${
-                activeStep === 0 ? 'ring-2 ring-primary' : ''
-              }`}
-            >
-              <div className="w-9 h-9 rounded-full bg-brand-teal text-on-primary flex items-center justify-center mb-xs shadow-sm">
-                <span className="material-symbols-outlined text-base" data-fill="true">check</span>
-              </div>
-              <span className="font-button text-button text-primary font-bold">1. Identity Check</span>
-              <span className="text-[11px] text-brand-teal font-semibold">100% Complete</span>
-            </button>
 
-            {/* Step 2: Sanctions */}
-            <button
-              onClick={() => setActiveStep(1)}
-              className={`flex flex-col items-center z-10 bg-surface-card px-md mb-md md:mb-0 cursor-pointer rounded-lg p-2 transition-all ${
-                activeStep === 1 ? 'ring-2 ring-primary' : ''
-              }`}
-            >
-              <div className="w-9 h-9 rounded-full bg-brand-teal text-on-primary flex items-center justify-center mb-xs shadow-sm">
-                <span className="material-symbols-outlined text-base" data-fill="true">check</span>
-              </div>
-              <span className="font-button text-button text-primary font-bold">2. Sanctions &amp; Watchlist</span>
-              <span className="text-[11px] text-brand-teal font-semibold">0 Hits · Cleared</span>
-            </button>
-
-            {/* Step 3: Financial Health */}
-            <button
-              onClick={() => setActiveStep(2)}
-              className={`flex flex-col items-center z-10 bg-surface-card px-md mb-md md:mb-0 cursor-pointer rounded-lg p-2 transition-all ${
-                activeStep === 2 ? 'ring-2 ring-primary' : ''
-              }`}
-            >
-              <div className="w-9 h-9 rounded-full bg-brand-ochre text-primary flex items-center justify-center mb-xs border-2 border-primary shadow-sm">
-                <span className="material-symbols-outlined text-base" data-fill="false">hourglass_empty</span>
-              </div>
-              <span className="font-button text-button text-primary font-bold">3. Financial Health</span>
-              <span className="text-[11px] text-brand-ochre font-bold">In Review (D&amp;B)</span>
-            </button>
-
-            {/* Step 4: ESG Compliance */}
-            <button
-              onClick={() => setActiveStep(3)}
-              className={`flex flex-col items-center z-10 bg-surface-card px-md cursor-pointer rounded-lg p-2 transition-all ${
-                activeStep === 3 ? 'ring-2 ring-primary' : 'opacity-70'
-              }`}
-            >
-              <div className="w-9 h-9 rounded-full bg-surface border border-hairline text-on-surface-variant flex items-center justify-center mb-xs font-bold text-sm">
-                4
-              </div>
-              <span className="font-button text-button text-on-surface-variant font-medium">4. ESG Compliance</span>
-              <span className="text-[11px] text-body-muted">Ecovadis Sync</span>
-            </button>
+            {[
+              { label: '1. Identity Check', sub: '100% Complete', done: true },
+              { label: '2. Sanctions & Watchlist', sub: '0 Hits · Cleared', done: true },
+              { label: '3. Financial Health', sub: 'In Review (D&B)', done: false, inProgress: true },
+              { label: '4. ESG Compliance', sub: 'EcoVadis Sync', done: false },
+            ].map((step, idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveStep(idx)}
+                className={`flex flex-col items-center z-10 bg-surface-card px-md mb-md md:mb-0 cursor-pointer rounded-lg p-2 transition-all ${
+                  activeStep === idx ? 'ring-2 ring-primary' : !step.done && !step.inProgress ? 'opacity-70' : ''
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-xs shadow-sm ${
+                  step.done
+                    ? 'bg-brand-teal text-on-primary'
+                    : step.inProgress
+                    ? 'bg-brand-ochre text-primary border-2 border-primary'
+                    : 'bg-surface border border-hairline text-on-surface-variant font-bold text-sm'
+                }`}>
+                  {step.done ? (
+                    <span className="material-symbols-outlined text-base" data-fill="true">check</span>
+                  ) : step.inProgress ? (
+                    <span className="material-symbols-outlined text-base" data-fill="false">hourglass_empty</span>
+                  ) : (
+                    idx + 1
+                  )}
+                </div>
+                <span className={`font-button text-button font-bold ${step.done || step.inProgress ? 'text-primary' : 'text-on-surface-variant'}`}>
+                  {step.label}
+                </span>
+                <span className={`text-[11px] font-semibold ${step.done ? 'text-brand-teal' : step.inProgress ? 'text-brand-ochre font-bold' : 'text-body-muted'}`}>
+                  {step.sub}
+                </span>
+              </button>
+            ))}
           </div>
 
           {/* Saturated Dashboard Bento Grid */}
@@ -187,15 +228,15 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
               <div className="z-10 relative">
                 <h3 className="font-title-lg text-title-lg font-bold mb-xs">Overall Trust Score</h3>
                 <p className="font-body-sm text-body-sm text-brand-mint mb-lg">
-                  Aggregated multi-point verification ledger.
+                  Aggregated multi-point verification ledger for {verifySupplier.tradeName}.
                 </p>
                 <div className="flex items-end gap-xs mb-md">
-                  <span className="font-display-xl text-display-xl leading-none font-bold">92</span>
+                  <span className="font-display-xl text-display-xl leading-none font-bold">{overallScore}</span>
                   <span className="font-title-md text-title-md text-brand-mint pb-2 font-bold">/100</span>
                 </div>
                 <div className="inline-flex items-center gap-1.5 bg-white/15 px-3 py-1.5 rounded-lg text-brand-mint font-button text-button text-xs font-semibold backdrop-blur-sm">
                   <span className="material-symbols-outlined text-sm">trending_up</span>
-                  +5 from last quarter audit
+                  {verifySupplier.trust?.band === 'verified' ? 'Verified Standing' : verifySupplier.trust?.band === 'basic' ? 'Basic Standing' : 'Pending Verification'}
                 </div>
               </div>
 
@@ -225,15 +266,15 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
                   <div className="flex justify-between items-center">
                     <span className="font-body-sm text-body-sm text-on-surface-variant font-medium">Credit Risk Class</span>
                     <span className="font-button text-button text-primary bg-brand-mint/30 px-2 py-0.5 rounded text-xs font-bold">
-                      Low Risk (Class 2)
+                      {overallScore >= 70 ? 'Low Risk (Class 2)' : overallScore >= 40 ? 'Moderate Risk (Class 3)' : 'Review Required'}
                     </span>
                   </div>
                   <div className="w-full bg-surface-variant rounded-full h-2 overflow-hidden">
-                    <div className="bg-brand-teal h-2 rounded-full w-[20%]"></div>
+                    <div className="bg-brand-teal h-2 rounded-full" style={{ width: `${Math.min(100 - overallScore, 100)}%` }}></div>
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t border-hairline">
                     <span className="font-body-sm text-body-sm text-on-surface-variant font-medium">Payment Promptness</span>
-                    <span className="font-button text-button text-primary font-bold">98% On-Time</span>
+                    <span className="font-button text-button text-primary font-bold">{overallScore >= 60 ? '98% On-Time' : 'Data Pending'}</span>
                   </div>
                 </div>
               </div>
@@ -282,7 +323,7 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
                     <div>
                       <span className="font-button text-button text-sm font-bold block">0 Hits Found (Clean Standing)</span>
                       <span className="font-body-sm text-body-sm text-primary/80">
-                        Clear across OFAC (US Treasury), UN Security Council, and EU Consolidated Financial Sanctions lists.
+                        {verifySupplier.tradeName} cleared across OFAC (US Treasury), UN Security Council, and EU Consolidated Financial Sanctions lists.
                       </span>
                     </div>
                   </div>
@@ -291,8 +332,10 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
             </div>
           </div>
         </div>
-      ) : (
-        /* Verifier Task Review Queue */
+      )}
+
+      {/* ─── TAB: Evidence Queue ─── */}
+      {activeTab === 'queue' && (
         <div className="flex flex-col gap-6">
           <div className="flex justify-between items-center">
             <div>
@@ -320,13 +363,13 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
                 <div key={task.id} className="grid grid-cols-12 gap-3 p-4 items-center hover:bg-surface-variant transition-colors text-sm">
                   <div className="col-span-4 flex flex-col">
                     <span className="font-bold text-primary">{task.supplier?.tradeName || 'Supplier'}</span>
-                    <span className="text-xs text-on-surface-variant font-medium">{task.claim_label}</span>
+                    <span className="text-xs text-on-surface-variant font-medium">{task.claimLabel}</span>
                     <span className="text-[11px] text-body-muted font-mono">{task.id}</span>
                   </div>
 
                   <div className="col-span-3 flex flex-col text-xs">
-                    <span className="text-primary line-clamp-1">{task.evidence_summary}</span>
-                    <span className="text-body-muted">{task.evidence_count} file(s) attached</span>
+                    <span className="text-primary line-clamp-1">{task.claimLabel}</span>
+                    <span className="text-body-muted">{task.evidenceCount || 0} file(s) attached</span>
                   </div>
 
                   <div className="col-span-2">
@@ -335,14 +378,16 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
                         ? 'bg-brand-mint text-brand-teal'
                         : task.state === 'in_review'
                         ? 'bg-brand-ochre/25 text-primary border border-brand-ochre/30'
+                        : task.state === 'escalated'
+                        ? 'bg-error/10 text-error border border-error/30'
                         : 'bg-surface text-body-muted border border-hairline'
                     }`}>
-                      {task.state === 'approved' ? '✓ Approved' : task.state.replace('_', ' ')}
+                      {task.state === 'approved' ? '✓ Approved' : task.state.replace(/_/g, ' ')}
                     </span>
                   </div>
 
                   <div className="col-span-2 flex flex-col text-xs">
-                    <span className="font-semibold text-primary">{task.assigned_to}</span>
+                    <span className="font-semibold text-primary">{task.assignedTo}</span>
                     <span className="text-body-muted">{task.sla}</span>
                   </div>
 
@@ -397,17 +442,17 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
             <div className="flex flex-col gap-4 text-sm mb-6">
               <div>
                 <span className="text-xs font-bold text-body-muted block mb-1 uppercase">Claim Asserted</span>
-                <p className="font-semibold text-primary">{selectedTask.claim_label}</p>
+                <p className="font-semibold text-primary">{selectedTask.claimLabel}</p>
               </div>
 
               <div>
                 <span className="text-xs font-bold text-body-muted block mb-1 uppercase">Evidence Submitted</span>
                 <div className="p-3 bg-surface rounded-lg border border-hairline text-xs">
-                  <p className="font-medium text-primary mb-1">{selectedTask.evidence_summary}</p>
+                  <p className="font-medium text-primary mb-1">{selectedTask.claimLabel}</p>
                   <div className="text-body-muted flex items-center gap-2">
                     <span>SHA-256 Verified</span>
                     <span>·</span>
-                    <span>{selectedTask.evidence_count} attached files</span>
+                    <span>{selectedTask.evidenceCount || 0} attached files</span>
                   </div>
                 </div>
               </div>

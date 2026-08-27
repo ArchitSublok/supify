@@ -65,7 +65,7 @@ export default function App() {
             <SupplierProfile
               onBack={() => handleNavigate('/search')}
               onShowToast={showToast}
-              onOpenVerification={() => handleNavigate('/verification')}
+              onOpenVerification={(id) => handleNavigate(`/verification?supplier=${id}`)}
             />
           }
         />
