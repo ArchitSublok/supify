@@ -11,6 +11,10 @@ function navigate(path) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+function handleAccountClick() {
+  // Placeholder for account menu action
+}
+
 export default function App() {
   const [path, setPath] = useState(getPath)
   useEffect(() => {
@@ -38,7 +42,7 @@ function Header({ path }) {
         <button className={active === 'supplier' ? 'active' : ''} onClick={() => navigate('/supplier/onboarding/organisation')}>Supplier workspace</button>
         <button className={active === 'verifier' ? 'active' : ''} onClick={() => navigate('/verify/queue')}>Verifier queue</button>
       </nav>
-      <button className="profile-button" aria-label="Open account menu">VK</button>
+      <button className="profile-button" aria-label="Open account menu" onClick={handleAccountClick}>VK</button>
     </header>
   )
 }
