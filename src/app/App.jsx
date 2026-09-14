@@ -41,9 +41,15 @@ export default function App() {
 
       <Routes>
         <Route
-          path="/"
-          element={<LandingScreen onNavigate={handleNavigate} />}
-        />
+  path="/"
+  element={
+    <LandingScreen
+      onNavigate={handleNavigate}
+      onOpenAuth={(mode) => setAuthModalMode(mode)}
+      onShowToast={showToast}
+    />
+  }
+/>
         <Route
           path="/search"
           element={<SearchScreen onOpenSupplier={(id) => handleNavigate(`/suppliers/${id}`)} />}
@@ -164,12 +170,19 @@ export default function App() {
               className="w-full px-3.5 py-2.5 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary text-primary"
             />
           </div>
-             <div>
+                       <div>
             <label className="block text-xs font-bold text-primary mb-1">Login as</label>
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary text-primary"
+              className="w-full px-3.5 py-2.5 bg-background border border-hairline rounded-lg focus:outline-none focus:border-brand-teal focus:ring-2 focus:ring-brand-teal/20 text-primary font-medium cursor-pointer hover:border-brand-teal/50 transition-colors appearance-none"
+              style={{
+                backgroundImage:
+                  "url(\"data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 12px center',
+                backgroundSize: '18px',
+              }}
             >
               <option value="buyer">Buyer</option>
               <option value="supplier">Supplier</option>
