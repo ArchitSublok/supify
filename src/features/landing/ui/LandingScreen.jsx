@@ -1,5 +1,14 @@
-export function LandingScreen({ onNavigate }) {
+export function LandingScreen({ onNavigate, onOpenAuth, onShowToast }) {
   const warehouseIllustration = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDbm4vH0wBaP6ao5ChikQYoqGwTZiws_fA9GU44Q-ct1ePV_G07-JHfjfdYeyULGDvne2LKXEyeYEZZfKIT4EItm3iTXAf8vusURi67EwF0P-nX8QFRCDF5Mpey1EjMhsRPxaHWupI562Jy9qfFjp7RsJq24tn9hSHvBYOMYsr8c2xr9z6-m4TihrtYnRCp-fuB9942pdGDRFWbJ0IblVGenXxQxRt1oz8pdVbZXhyllfxh4I71pTg7'
+    const handleVerificationClick = () => {
+    const currentUserRole = localStorage.getItem('currentUserRole')
+    if (!currentUserRole) {
+      onShowToast?.('Please log in first to access the Verification Engine.', 'error')
+      onOpenAuth?.('login')
+      return
+    }
+    onNavigate('/verification')
+  }
 
   return (
     <main className="flex-grow w-full">
@@ -43,7 +52,7 @@ export function LandingScreen({ onNavigate }) {
                 <span className="material-symbols-outlined text-sm">arrow_forward</span>
               </button>
               <button
-                onClick={() => onNavigate('/verification')}
+                onClick={handleVerificationClick}
                 className="font-button text-button bg-surface-card text-primary border border-hairline px-xl py-md rounded-xl hover:bg-surface-variant transition-colors inline-flex items-center justify-center h-12 font-semibold"
               >
                 Verification Engine
@@ -121,7 +130,7 @@ export function LandingScreen({ onNavigate }) {
 
           {/* Teal Card: Verification */}
           <div
-            onClick={() => onNavigate('/verification')}
+              onClick={handleVerificationClick}
             className="bg-brand-teal text-on-primary rounded-xl p-xl flex flex-col gap-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 border-2 border-primary group cursor-pointer h-full"
           >
             <div className="flex items-center justify-between">
@@ -198,7 +207,7 @@ export function LandingScreen({ onNavigate }) {
                 Explore Suppliers Now
               </button>
               <button
-                onClick={() => onNavigate('/verification')}
+                   onClick={handleVerificationClick}
                 className="font-button text-button bg-surface border border-hairline text-primary px-6 py-3 rounded-xl hover:bg-surface-variant transition-colors font-semibold"
               >
                 View Verification Engine
