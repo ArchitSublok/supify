@@ -13,7 +13,7 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
   const [activeTab, setActiveTab] = useState('run')
   const [selectedTask, setSelectedTask] = useState(null)
   const [approvedState, setApprovedState] = useState(false)
-
+  const currentUserRole = localStorage.getItem('currentUserRole')
   // The supplier being verified (loaded dynamically)
   const [verifySupplier, setVerifySupplier] = useState(null)
   const [supplierLoading, setSupplierLoading] = useState(true)
@@ -54,9 +54,13 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
   }, [])
 
   const handleApproveSupplier = () => {
-    setApprovedState(true)
-    onShowToast?.(`Supplier verification for ${verifySupplier?.tradeName} approved and appended to immutable ledger!`)
+  if (currentUserRole !== 'verifier') {
+    onShowToast?.('Only verifiers are authorized to approve suppliers.', 'error')
+    return
   }
+  setApprovedState(true)
+  onShowToast?.(`Supplier verification for ${verifySupplier?.tradeName} approved and appended to immutable ledger!`)
+}
 
   const handleDownloadPDF = () => {
     window.print()
@@ -164,18 +168,25 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
                 <span className="material-symbols-outlined text-base">picture_as_pdf</span>
                 Download PDF
               </button>
-              <button
-                disabled={approvedState}
-                onClick={handleApproveSupplier}
-                className={`font-button text-button rounded-lg px-5 py-2.5 transition-opacity flex items-center gap-1.5 font-bold shadow ${
-                  approvedState
-                    ? 'bg-brand-mint text-brand-teal opacity-90 cursor-default'
-                    : 'bg-brand-teal text-on-primary hover:opacity-90'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[18px]" data-fill="true">check_circle</span>
-                {approvedState ? 'Supplier Approved ✓' : 'Approve Supplier'}
-              </button>
+            
+              {currentUserRole === 'verifier' ? (
+                <button
+                  disabled={approvedState}
+                  onClick={handleApproveSupplier}
+                  className={`font-button text-button rounded-lg px-5 py-2.5 transition-opacity flex items-center gap-1.5 font-bold shadow ${
+                    approvedState
+                      ? 'bg-brand-mint text-brand-teal opacity-90 cursor-default'
+                      : 'bg-brand-teal text-on-primary hover:opacity-90'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]" data-fill="true">check_circle</span>
+                  {approvedState ? 'Supplier Approved ✓' : 'Approve Supplier'}
+                </button>
+              ) : (
+                <span className="text-xs text-body-muted italic px-2">
+                  Only verifiers can approve suppliers.
+                </span>
+              )}
             </div>
           </div>
 
