@@ -17,6 +17,7 @@ export default function App() {
   const location = useLocation()
   const [toast, setToast] = useState(null)
   const [authModalMode, setAuthModalMode] = useState(null) // null | 'login' | 'signup'
+  const [selectedRole, setSelectedRole] = useState('buyer')
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
@@ -136,11 +137,12 @@ export default function App() {
         onClose={() => setAuthModalMode(null)}
         title={authModalMode === 'login' ? 'Log In to Supify' : 'Create Supify Account'}
       >
-        <form
+               <form
           onSubmit={(e) => {
             e.preventDefault()
+            localStorage.setItem('currentUserRole', selectedRole)
             setAuthModalMode(null)
-            showToast(`Welcome back to Supify!`)
+            showToast(`Welcome back to Supify! Logged in as ${selectedRole}.`)
           }}
           className="flex flex-col gap-4 text-sm"
         >
@@ -161,6 +163,18 @@ export default function App() {
               placeholder="••••••••••••"
               className="w-full px-3.5 py-2.5 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary text-primary"
             />
+          </div>
+             <div>
+            <label className="block text-xs font-bold text-primary mb-1">Login as</label>
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-background border border-hairline rounded-lg focus:outline-none focus:border-primary text-primary"
+            >
+              <option value="buyer">Buyer</option>
+              <option value="supplier">Supplier</option>
+              <option value="verifier">Verifier</option>
+            </select>
           </div>
           <button
             type="submit"
