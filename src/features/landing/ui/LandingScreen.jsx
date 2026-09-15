@@ -1,6 +1,14 @@
+// Illustrative hero artifact — a bento summary of the trust model. The method and
+// pillar counts are structural facts about the product; the band, claim row and
+// expiry are illustrative sample values.
+const HERO_ALT =
+  'Illustration of the Supify trust model. A supplier at trust band Verified, with the identity ' +
+  'gate passed. Five evidence rungs, from self-declared to site-verified. Seven scored pillars. ' +
+  'A sample claim: GST registration, confirmed by registry check four days ago. A factory audit ' +
+  'expiring in twelve days, showing that trust decays over time.'
+
 export function LandingScreen({ onNavigate, onOpenAuth, onShowToast }) {
-  const warehouseIllustration = 'https://lh3.googleusercontent.com/aida-public/AB6AXuDbm4vH0wBaP6ao5ChikQYoqGwTZiws_fA9GU44Q-ct1ePV_G07-JHfjfdYeyULGDvne2LKXEyeYEZZfKIT4EItm3iTXAf8vusURi67EwF0P-nX8QFRCDF5Mpey1EjMhsRPxaHWupI562Jy9qfFjp7RsJq24tn9hSHvBYOMYsr8c2xr9z6-m4TihrtYnRCp-fuB9942pdGDRFWbJ0IblVGenXxQxRt1oz8pdVbZXhyllfxh4I71pTg7'
-    const handleVerificationClick = () => {
+  const handleVerificationClick = () => {
     const currentUserRole = localStorage.getItem('currentUserRole')
     if (!currentUserRole) {
       onShowToast?.('Please log in first to access the Verification Engine.', 'error')
@@ -9,20 +17,12 @@ export function LandingScreen({ onNavigate, onOpenAuth, onShowToast }) {
     }
     onNavigate('/verification')
   }
-
   return (
     <main className="flex-grow w-full">
       {/* Hero Section */}
       <section className="max-w-container-max mx-auto px-lg py-12 md:py-section">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-xl items-center">
           <div className="lg:col-span-7 flex flex-col gap-lg">
-            <div className="inline-flex items-center gap-2 bg-surface-card border border-hairline px-3.5 py-1.5 rounded-full w-fit">
-              <span className="w-2 h-2 rounded-full bg-brand-coral animate-ping"></span>
-              <span className="font-label-uppercase text-label-uppercase text-primary">
-                Next-Gen Supplier Discovery &amp; Verification
-              </span>
-            </div>
-
             <h1 className="font-display-xl-mobile text-display-xl-mobile md:font-display-xl md:text-display-xl text-primary max-w-[800px] leading-tight">
               Source with{' '}
               <span className="text-brand-coral relative inline-block">
@@ -76,14 +76,80 @@ export function LandingScreen({ onNavigate, onOpenAuth, onShowToast }) {
             </div>
           </div>
 
-          {/* Hero 3D Illustration artifact */}
+          {/* Hero artifact — bento summary of the trust model */}
           <div className="lg:col-span-5 flex justify-center lg:justify-end relative">
             <div className="absolute inset-0 bg-brand-peach opacity-20 rounded-full blur-3xl -z-10 transform translate-x-10 translate-y-10"></div>
-            <img
-              alt="3D Warehouse Illustration"
-              className="w-full max-w-md object-contain animate-float drop-shadow-2xl"
-              src={warehouseIllustration}
-            />
+
+            <div
+              role="img"
+              aria-label={HERO_ALT}
+              className="w-full max-w-md grid grid-cols-3 gap-2.5 animate-float"
+            >
+              {/* Trust band */}
+              <div className="col-span-2 bg-brand-teal border-2 border-primary rounded-xl p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between min-h-[118px]">
+                <span className="font-label-uppercase text-label-uppercase text-[9px] font-bold text-on-primary/70">
+                  Trust band
+                </span>
+                <div>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="material-symbols-outlined text-on-primary text-xl" data-fill="true">verified</span>
+                    <span className="font-display-sm text-display-sm text-on-primary font-bold text-2xl">Verified</span>
+                  </div>
+                  <div className="font-body-sm text-body-sm text-[10px] text-on-primary/80">
+                    Identity gate passed
+                  </div>
+                </div>
+              </div>
+
+              {/* Evidence rungs */}
+              <div className="bg-brand-coral border-2 border-primary rounded-xl p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <span className="font-label-uppercase text-label-uppercase text-[9px] font-bold text-primary/70">
+                  Methods
+                </span>
+                <div>
+                  <div className="font-display-sm text-display-sm text-primary font-bold text-3xl leading-none">5</div>
+                  <div className="font-body-sm text-body-sm text-[9px] text-primary/80 mt-0.5">evidence rungs</div>
+                </div>
+              </div>
+
+              {/* Pillars */}
+              <div className="bg-brand-lavender border-2 border-primary rounded-xl p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <span className="font-label-uppercase text-label-uppercase text-[9px] font-bold text-primary/70">
+                  Pillars
+                </span>
+                <div>
+                  <div className="font-display-sm text-display-sm text-primary font-bold text-3xl leading-none">7</div>
+                  <div className="font-body-sm text-body-sm text-[9px] text-primary/70 mt-0.5">scored areas</div>
+                </div>
+              </div>
+
+              {/* Sample claim — method and recency, per A2 */}
+              <div className="col-span-2 bg-surface-bright border-2 border-primary rounded-xl p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center">
+                <div className="flex items-center gap-2 w-full">
+                  <span className="material-symbols-outlined text-brand-teal text-base shrink-0" data-fill="true">check_circle</span>
+                  <div className="min-w-0">
+                    <div className="font-button text-button text-[10px] font-bold text-primary truncate">GST Registration</div>
+                    <div className="font-body-sm text-body-sm text-[9px] text-body-muted">Registry check · 4 days ago</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Decay — per A3 */}
+              <div className="col-span-3 bg-brand-peach border-2 border-primary rounded-xl p-3.5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-primary text-sm" data-fill="true">schedule</span>
+                    <span className="font-button text-button text-[10px] font-bold text-primary">
+                      Trust decays over time
+                    </span>
+                  </div>
+                  <span className="font-body-sm text-body-sm text-[9px] text-primary/70">Audit · 12 days left</span>
+                </div>
+                <div className="w-full bg-primary/15 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+                  <div className="bg-brand-coral h-1.5 rounded-full w-[22%]"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -64,6 +64,15 @@
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
+/* Respect users who ask for less motion — the hero artifact floats by default */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-pulseGlow,
+  .animate-ping {
+    animation: none !important;
+  }
+}
+
 /* Supify tactile card styling */
 .tactile-card {
   box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
