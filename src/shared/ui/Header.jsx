@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 export function Header({ currentPath, onNavigate, onOpenAuth }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -7,7 +8,7 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
     { label: 'Platform', path: '/', isActive: currentPath === '/' || currentPath === '/platform' },
     { label: 'Solutions', path: '/search', isActive: currentPath.startsWith('/search') || currentPath.startsWith('/solutions') || currentPath.startsWith('/suppliers') },
     { label: 'Verification', path: '/verification', isActive: currentPath.startsWith('/verification') || currentPath.startsWith('/verify') },
-    { label: 'Supplier Workspace', path: '/supplier/onboarding', isActive: currentPath.startsWith('/supplier') },
+    { label: 'Supplier Workspace', path: '/supplier', isActive: currentPath === '/supplier' || currentPath.startsWith('/supplier/') },
   ]
 
   const handleNav = (path) => {
@@ -30,9 +31,10 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
 
           <nav className="hidden lg:flex items-center gap-lg">
             {navItems.map((item) => (
-              <button
+              <Link
                 key={item.label}
-                onClick={() => handleNav(item.path)}
+                to={item.path}
+                aria-current={item.isActive ? 'page' : undefined}
                 className={`font-button text-button transition-all duration-150 py-1 ${
                   item.isActive
                     ? 'text-primary font-bold border-b-2 border-primary pb-0.5'
@@ -40,7 +42,7 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
                 }`}
               >
                 {item.label}
-              </button>
+              </Link>
             ))}
           </nav>
         </div>
@@ -67,6 +69,8 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="lg:hidden p-2 text-primary rounded-lg hover:bg-surface-variant transition-colors"
           aria-label="Toggle navigation menu"
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-navigation"
         >
           <span className="material-symbols-outlined text-2xl">
             {mobileMenuOpen ? 'close' : 'menu'}
@@ -76,11 +80,13 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-hairline bg-surface-card px-lg py-md shadow-lg flex flex-col gap-sm animate-fadeIn">
+        <nav id="mobile-navigation" aria-label="Mobile navigation" className="lg:hidden border-t border-hairline bg-surface-card px-lg py-md shadow-lg flex flex-col gap-sm animate-fadeIn">
           {navItems.map((item) => (
-            <button
+            <Link
               key={item.label}
-              onClick={() => handleNav(item.path)}
+              to={item.path}
+              onClick={() => setMobileMenuOpen(false)}
+              aria-current={item.isActive ? 'page' : undefined}
               className={`text-left font-button text-button py-2.5 px-3 rounded-lg transition-colors ${
                 item.isActive
                   ? 'bg-primary text-on-primary font-bold'
@@ -88,7 +94,7 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
               }`}
             >
               {item.label}
-            </button>
+            </Link>
           ))}
           <div className="pt-sm mt-xs border-t border-hairline flex flex-col gap-xs">
             <button
@@ -107,7 +113,7 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
               Get Started
             </button>
           </div>
-        </div>
+        </nav>
       )}
     </header>
   )

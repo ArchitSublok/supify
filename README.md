@@ -26,6 +26,19 @@ Consoles are role-protected: buyer, supplier, and verifier. Switch roles with th
 
 ## Try it
 
+### Supplier workspace additions
+
+Open `/supplier` for the preparation dashboard, `/supplier/onboarding` for the
+validated company form, or `/supplier/portfolio` for the routed portfolio preview.
+The workspace uses Context with `useReducer`, custom autosave hooks, and a small
+Zustand checklist store. It includes loading/error/retry states, draft recovery,
+evidence selection, and a local demo submission receipt.
+
+Run `npm test` for focused Vitest/React Testing Library checks. The
+[React workspace guide](docs/react-workspace.md) maps each requested concept to
+its implementation and explains the demo response controls. Uploads and
+submissions remain local simulations; the portfolio is a private draft preview.
+
 ```bash
 npm install
 npm run dev
@@ -59,7 +72,7 @@ features/                   discovery · profile · comparison · onboarding · 
 app/                        routing, role context, protected routes, 404
 ```
 
-**Stack:** Vite · React (JavaScript) · React Router 6. No state library, no CSS framework, no backend.
+**Stack:** Vite · React (JavaScript) · React Router 6 · Tailwind CSS · Zustand. No backend yet.
 
 Dependencies point downward only. Features never import each other. All shareable state (query, filters, selected claim, comparison set, queue filter) lives in the URL; session state (drafts, shortlist) lives in localStorage.
 
@@ -94,4 +107,4 @@ These come from the design docs and are visible in the running app:
 
 ## Status
 
-Frontend complete for the current evaluation scope (React fundamentals through React Router). Database, backend API, authentication, file storage, and the commercial layer (RFQs, quotes) are designed in the docs but deliberately not built yet.
+Frontend includes routing, Context/reducer state, a Zustand dashboard, validated forms, and async workspace recovery flows. Database, backend API, authentication, file storage, and the commercial layer (RFQs, quotes) are designed in the docs but deliberately not built yet.
