@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .workspace-panel { @apply bg-surface-card border border-hairline rounded-2xl p-5 md:p-7 shadow-sm; }
+  .workspace-input { @apply block w-full px-4 py-3 bg-background border border-outline-variant rounded-lg text-sm text-primary; }
+  .workspace-input:focus { @apply outline-none border-brand-teal ring-2 ring-brand-teal/30; }
+  .workspace-input[aria-invalid="true"] { @apply border-error; }
+  .workspace-primary { @apply inline-flex items-center justify-center px-5 py-3 bg-primary text-white rounded-lg font-semibold text-sm; }
+  .workspace-secondary { @apply inline-flex items-center justify-center px-4 py-3 border border-outline-variant bg-background text-primary rounded-lg font-semibold text-sm; }
+  .workspace-text-button { @apply text-brand-teal underline underline-offset-4 font-semibold text-xs; }
+  .workspace-tab { @apply inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold; }
+  .workspace-badge { @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold; }
+  .workspace-error { @apply border border-error/30 bg-error-container/50 p-4 rounded-xl text-sm text-on-error-container; }
+  .workspace-dialog { @apply bg-background text-primary rounded-2xl border border-hairline p-6 max-w-xl w-[calc(100%-2rem)] shadow-2xl; }
+  .workspace-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+}
+
+button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: 0.6; }
+:where(a, button, summary, input, select, textarea):focus-visible { outline: 3px solid #1a3a3a; outline-offset: 3px; }
+
 @layer base {
   :root {
     --canvas: #fffaf0;

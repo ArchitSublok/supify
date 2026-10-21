@@ -1,4 +1,5 @@
 import { SupplierRepository } from './contract'
+import { workspaceRepository } from './workspaceRepository.js'
 import { toSupplier, toVerificationTask } from '../../entities/supplier/model/adapter'
 
 const SUPPLIERS_URL = '/data/suppliers.json'
@@ -23,6 +24,13 @@ function findSupplierWire(supplierWires, supplierId) {
 }
 
 class FixtureSupplierRepository extends SupplierRepository {
+  configureDemo(options) { workspaceRepository.configureDemo(options) }
+  getWorkspaceDraft(options) { return workspaceRepository.getWorkspaceDraft(options) }
+  saveWorkspaceDraft(draft, options) { return workspaceRepository.saveWorkspaceDraft(draft, options) }
+  resetWorkspaceDraft(options) { return workspaceRepository.resetWorkspaceDraft(options) }
+  uploadEvidence(file, options) { return workspaceRepository.uploadEvidence(file, options) }
+  submitWorkspace(payload, options) { return workspaceRepository.submitWorkspace(payload, options) }
+
   async search(filters = {}) {
     const supplierWires = await fetchJson(SUPPLIERS_URL)
     const query = (filters.query || '').trim().toLowerCase()

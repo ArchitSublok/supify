@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { Header } from '../shared/ui/Header'
 import { Modal } from '../shared/ui/Modal'
 import { Toast } from '../shared/ui/Toast'
@@ -9,7 +9,8 @@ import { ComparisonScreen } from '../features/comparison/ui/ComparisonScreen'
 import { SupplierProfile } from '../features/supplier-profile/ui/SupplierProfile'
 import { VerificationDashboard } from '../features/verification-dashboard/ui/VerificationDashboard'
 import { VerificationTaskDetail } from '../features/verification-review/ui/VerificationTaskDetail'
-import { OnboardingScreen } from '../features/supplier-onboarding/ui/OnboardingScreen'
+import { WorkspaceLayout, WorkspaceDashboard, OnboardingScreen, OnboardingStep,
+  PortfolioScreen, PortfolioAbout, PortfolioCapabilities, PortfolioEvidence } from '../features/supplier-onboarding'
 import { NotFound } from './NotFound'
 
 export default function App() {
@@ -18,6 +19,8 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [authModalMode, setAuthModalMode] = useState(null) // null | 'login' | 'signup'
   const [selectedRole, setSelectedRole] = useState('buyer')
+
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [location.pathname])
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
@@ -107,24 +110,19 @@ export default function App() {
           path="/verifier/task/:taskId"
           element={<VerificationTaskDetail />}
         />
-        <Route
-          path="/supplier"
-          element={
-            <OnboardingScreen
-              onShowToast={showToast}
-              onNavigate={handleNavigate}
-            />
-          }
-        />
-        <Route
-          path="/supplier/onboarding"
-          element={
-            <OnboardingScreen
-              onShowToast={showToast}
-              onNavigate={handleNavigate}
-            />
-          }
-        />
+        <Route path="/supplier" element={<WorkspaceLayout />}>
+          <Route index element={<WorkspaceDashboard />} />
+          <Route path="onboarding" element={<OnboardingScreen />}>
+            <Route index element={<Navigate to="organisation" replace />} />
+            <Route path=":step" element={<OnboardingStep />} />
+          </Route>
+          <Route path="portfolio" element={<PortfolioScreen />}>
+            <Route index element={<PortfolioAbout />} />
+            <Route path="capabilities" element={<PortfolioCapabilities />} />
+            <Route path="evidence" element={<PortfolioEvidence />} />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
 
