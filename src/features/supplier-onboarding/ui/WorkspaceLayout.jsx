@@ -51,24 +51,6 @@ function NavigationGuard() {
   </dialog>
 }
 
-function DemoControls() {
-  const { repository, retryLoad, isDirty, state } = useSupplierWorkspace()
-  const [message, setMessage] = useState('')
-  return <details className="mt-8 border-t border-hairline pt-4 text-xs text-body-muted">
-    <summary className="cursor-pointer font-semibold">Demo response controls</summary>
-    <div className="mt-3 flex flex-wrap items-center gap-3">
-      <label>Response speed <select className="border border-hairline rounded px-2 py-1 bg-background ml-2" defaultValue="350"
-        onChange={(event) => repository.configureDemo({ delayMs: Number(event.target.value) })}>
-        <option value="350">Normal</option><option value="2000">Slow (2 seconds)</option>
-      </select></label>
-      {['load', 'save', 'upload', 'submit'].map((operation) => <button type="button" className="workspace-text-button" key={operation}
-        onClick={() => { repository.configureDemo({ failNext: operation }); setMessage(`Next ${operation} request will fail once.`) }}>Fail next {operation}</button>)}
-      <button type="button" className="workspace-text-button" disabled={isDirty || state.submit.status === 'pending' || state.load.status === 'pending'} onClick={retryLoad}>Reload saved draft</button>
-    </div>
-    <p role="status" className="mt-2">{message}</p>
-  </details>
-}
-
 function WorkspaceShell() {
   const { state, retryLoad, resetDraft } = useSupplierWorkspace()
   const remaining = useTaskStore((store) => store.tasks.filter((task) => !task.done).length)
@@ -78,7 +60,7 @@ function WorkspaceShell() {
       <div><p className="text-label-uppercase text-brand-teal mb-2">Supplier Workspace</p>
         <h1 className="text-display-sm md:text-display-md font-bold">Build your supplier presence.</h1>
         <p className="text-body-muted mt-3 max-w-2xl">Keep your company details, capabilities, and evidence together. Give buyers a clearer picture of what you can supply.</p></div>
-      <span className="workspace-badge bg-brand-mint">Local demo workspace</span>
+
     </div>
     <nav aria-label="Supplier workspace" className="flex flex-wrap gap-2 mb-8 border-b border-hairline pb-4">
       {[
@@ -102,7 +84,7 @@ function WorkspaceShell() {
         <p>Loading your saved workspace…</p><div className="h-10 w-2/3 bg-surface-strong rounded" /><div className="h-28 bg-surface-strong rounded" /><div className="h-16 bg-surface-strong rounded" />
       </div>}
     </section> : <Outlet />}
-    <DemoControls />
+
     <NavigationGuard />
   </main>
 }
