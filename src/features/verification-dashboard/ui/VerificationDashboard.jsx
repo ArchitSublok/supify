@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supplierRepository } from '../../../shared/api/supplierRepository'
 import { TrustBand } from '../../../entities/trust/ui/TrustBand'
+import { downloadVerificationPDF } from '../lib/downloadVerificationPDF'
 
 export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
   const [searchParams] = useSearchParams()
@@ -63,8 +64,10 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
 }
 
   const handleDownloadPDF = () => {
-    window.print()
-    onShowToast?.('Exporting verification dossier as PDF...')
+    if (verifySupplier) {
+      downloadVerificationPDF(verifySupplier, overallScore)
+      onShowToast?.(`Verification dossier for ${verifySupplier.tradeName} downloaded successfully!`)
+    }
   }
 
   const handleApproveTask = (taskId) => {
