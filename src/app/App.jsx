@@ -13,6 +13,7 @@ import { VerificationDashboard } from '../features/verification-dashboard/ui/Ver
 import { VerificationTaskDetail } from '../features/verification-review/ui/VerificationTaskDetail'
 import { WorkspaceLayout, WorkspaceDashboard, OnboardingScreen, OnboardingStep,
   PortfolioScreen, PortfolioAbout, PortfolioCapabilities, PortfolioEvidence } from '../features/supplier-onboarding'
+import { ProtectedRoute } from './ProtectedRoute'
 import { NotFound } from './NotFound'
 
 export default function App() {
@@ -111,7 +112,11 @@ export default function App() {
         />
         <Route
           path="/verifier/task/:taskId"
-          element={<VerificationTaskDetail />}
+          element={
+            <ProtectedRoute requiredRole="verifier">
+              <VerificationTaskDetail />
+            </ProtectedRoute>
+          }
         />
         <Route path="/supplier" element={<WorkspaceLayout />}>
           <Route index element={<WorkspaceDashboard />} />
