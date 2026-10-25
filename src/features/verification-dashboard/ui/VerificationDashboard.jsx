@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
+import { UserRoleContext } from '../../../entities/user/model/UserRoleContext'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { supplierRepository } from '../../../shared/api/supplierRepository'
 import { TrustBand } from '../../../entities/trust/ui/TrustBand'
@@ -14,7 +15,8 @@ export function VerificationDashboard({ onOpenSupplier, onShowToast }) {
   const [activeTab, setActiveTab] = useState('run')
   const [selectedTask, setSelectedTask] = useState(null)
   const [approvedState, setApprovedState] = useState(false)
-  const currentUserRole = localStorage.getItem('currentUserRole')
+  const userSession = useContext(UserRoleContext)
+  const currentUserRole = userSession?.role || localStorage.getItem('currentUserRole')
   // The supplier being verified (loaded dynamically)
   const [verifySupplier, setVerifySupplier] = useState(null)
   const [supplierLoading, setSupplierLoading] = useState(true)

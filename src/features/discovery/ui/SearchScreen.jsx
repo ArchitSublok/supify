@@ -7,6 +7,8 @@ export function SearchScreen({ onOpenSupplier = null }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   const query = searchParams.get('q') || ''
   const band = searchParams.get('band') || ''
@@ -18,6 +20,7 @@ export function SearchScreen({ onOpenSupplier = null }) {
 
   useEffect(() => {
     setLoading(true)
+    setError(null)
     supplierRepository
       .search({ query, band, region, industry, sortBy })
       .then((data) => {
@@ -33,11 +36,12 @@ export function SearchScreen({ onOpenSupplier = null }) {
         setSuppliers(res)
         setLoading(false)
       })
-      .catch(() => {
+      .catch((err) => {
         setSuppliers([])
+        setError(err?.message || 'Unable to scan supplier repository. Please try again.')
         setLoading(false)
       })
-  }, [query, band, region, industry, sortBy, extraFilter])
+  }, [query, band, region, industry, sortBy, extraFilter, retryCount])
 
   function updateParams(next) {
     const updated = new URLSearchParams(searchParams)
@@ -277,6 +281,18 @@ export function SearchScreen({ onOpenSupplier = null }) {
           <div className="p-12 text-center bg-surface-card rounded-2xl border border-hairline text-body-muted">
             <span className="material-symbols-outlined text-4xl animate-spin mb-2">progress_activity</span>
             <p>Scanning verified supplier records...</p>
+          </div>
+        ) : error ? (
+          <div className="p-12 text-center bg-surface-card border-2 border-dashed border-error/40 rounded-2xl flex flex-col items-center gap-3">
+            <span className="material-symbols-outlined text-5xl text-error">error_outline</span>
+            <h3 className="font-title-lg text-title-lg text-primary font-bold">Unable to load suppliers</h3>
+            <p className="text-body-muted max-w-md">{error}</p>
+            <button
+              onClick={() => setRetryCount((c) => c + 1)}
+              className="font-button text-button bg-primary text-on-primary px-5 py-2.5 rounded-lg mt-2 font-bold"
+            >
+              Retry Search
+            </button>
           </div>
         ) : suppliers.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
