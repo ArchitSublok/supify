@@ -109,10 +109,18 @@ export function SupplierCard({ supplier, onOpen = null }) {
             <span className="text-[11px] text-body-muted">({supplier.claims?.filter(c => c.state === 'verified').length || 2} verified)</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Link
+              to={`/compare?ids=${supplier.id}`}
+              className="font-button text-[11px] font-bold text-primary bg-surface border border-hairline hover:bg-surface-strong px-2 py-1 rounded-lg transition-colors flex items-center gap-0.5"
+              title="Compare this supplier"
+            >
+              <span className="material-symbols-outlined text-xs">compare_arrows</span>
+              Compare
+            </Link>
             <Link
               to={`/verification?supplier=${supplier.id}`}
-              className="font-button text-[11px] font-bold text-brand-teal bg-brand-mint/20 hover:bg-brand-mint/40 border border-brand-teal/20 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-0.5"
+              className="font-button text-[11px] font-bold text-brand-teal bg-brand-mint/20 hover:bg-brand-mint/40 border border-brand-teal/20 px-2 py-1 rounded-lg transition-colors flex items-center gap-0.5"
             >
               <span className="material-symbols-outlined text-xs">verified</span>
               Verify

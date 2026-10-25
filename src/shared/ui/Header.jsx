@@ -1,15 +1,20 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 
-export function Header({ currentPath, onNavigate, onOpenAuth }) {
+export function Header({ currentPath: propPath, onNavigate, onOpenAuth }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const location = useLocation()
+  const currentPath = propPath || location.pathname
 
   const navItems = [
-    { label: 'Platform', path: '/', isActive: currentPath === '/' || currentPath === '/platform' },
-    { label: 'Solutions', path: '/search', isActive: currentPath.startsWith('/search') || currentPath.startsWith('/solutions') || currentPath.startsWith('/suppliers') },
-    { label: 'Verification', path: '/verification', isActive: currentPath.startsWith('/verification') || currentPath.startsWith('/verify') },
-    { label: 'Supplier Workspace', path: '/supplier', isActive: currentPath === '/supplier' || currentPath.startsWith('/supplier/') },
+    { label: 'Platform', path: '/', end: true },
+    { label: 'Solutions', path: '/search', matchPaths: ['/search', '/solutions', '/suppliers', '/compare'] },
+    { label: 'Verification', path: '/verification', matchPaths: ['/verification', '/verify'] },
+    { label: 'Supplier Workspace', path: '/supplier', matchPaths: ['/supplier'] },
   ]
+
+  const isItemActive = (item, isActive) =>
+    isActive || item.matchPaths?.some((p) => currentPath.startsWith(p))
 
   const handleNav = (path) => {
     setMobileMenuOpen(false)
@@ -31,18 +36,21 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
 
           <nav className="hidden lg:flex items-center gap-lg">
             {navItems.map((item) => (
-              <Link
+              <NavLink
                 key={item.label}
                 to={item.path}
-                aria-current={item.isActive ? 'page' : undefined}
-                className={`font-button text-button transition-all duration-150 py-1 ${
-                  item.isActive
-                    ? 'text-primary font-bold border-b-2 border-primary pb-0.5'
-                    : 'text-on-surface-variant hover:text-primary hover:opacity-90'
-                }`}
+                end={item.end}
+                className={({ isActive }) => {
+                  const active = isItemActive(item, isActive)
+                  return `font-button text-button transition-all duration-150 py-1 ${
+                    active
+                      ? 'text-primary font-bold border-b-2 border-primary pb-0.5'
+                      : 'text-on-surface-variant hover:text-primary hover:opacity-90'
+                  }`
+                }}
               >
                 {item.label}
-              </Link>
+              </NavLink>
             ))}
           </nav>
         </div>
@@ -82,19 +90,22 @@ export function Header({ currentPath, onNavigate, onOpenAuth }) {
       {mobileMenuOpen && (
         <nav id="mobile-navigation" aria-label="Mobile navigation" className="lg:hidden border-t border-hairline bg-surface-card px-lg py-md shadow-lg flex flex-col gap-sm animate-fadeIn">
           {navItems.map((item) => (
-            <Link
+            <NavLink
               key={item.label}
               to={item.path}
+              end={item.end}
               onClick={() => setMobileMenuOpen(false)}
-              aria-current={item.isActive ? 'page' : undefined}
-              className={`text-left font-button text-button py-2.5 px-3 rounded-lg transition-colors ${
-                item.isActive
-                  ? 'bg-primary text-on-primary font-bold'
-                  : 'text-primary hover:bg-surface-variant'
-              }`}
+              className={({ isActive }) => {
+                const active = isItemActive(item, isActive)
+                return `text-left font-button text-button py-2.5 px-3 rounded-lg transition-colors ${
+                  active
+                    ? 'bg-primary text-on-primary font-bold'
+                    : 'text-primary hover:bg-surface-variant'
+                }`
+              }}
             >
               {item.label}
-            </Link>
+            </NavLink>
           ))}
           <div className="pt-sm mt-xs border-t border-hairline flex flex-col gap-xs">
             <button
