@@ -101,28 +101,42 @@ export function SupplierCard({ supplier, onOpen = null }) {
           </div>
         </div>
 
-        {/* Footer with clean action links aligned to bottom */}
-        <div className="mt-auto pt-3 border-t border-hairline flex justify-between items-center text-xs">
-          <div className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-brand-ochre text-sm" data-fill="true">star</span>
-            <span className="font-bold text-primary">{supplier.rating || 4.8}</span>
-            <span className="text-[11px] text-body-muted">({supplier.claims?.filter(c => c.state === 'verified').length || 2} verified)</span>
+        {/* Footer: metrics on top, 3-button equal grid below for flawless alignment */}
+        <div className="mt-auto pt-3 border-t border-hairline flex flex-col gap-2.5 text-xs">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-brand-ochre text-sm" data-fill="true">star</span>
+              <span className="font-bold text-primary">{supplier.rating || 4.8}</span>
+              <span className="text-[11px] text-body-muted">({supplier.claims?.filter(c => c.state === 'verified').length || 2} verified)</span>
+            </div>
+            <span className="text-[10px] uppercase font-bold text-body-muted tracking-wider">{supplier.region || 'Global'}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
+            <Link
+              to={`/compare?ids=${supplier.id}`}
+              className="font-button text-[11px] font-bold text-primary bg-surface border border-hairline hover:bg-surface-strong py-1.5 px-1 rounded-lg transition-colors flex items-center justify-center gap-1 text-center shadow-2xs"
+              title="Compare this supplier"
+            >
+              <span className="material-symbols-outlined text-sm">compare_arrows</span>
+              <span>Compare</span>
+            </Link>
             <Link
               to={`/verification?supplier=${supplier.id}`}
-              className="font-button text-[11px] font-bold text-brand-teal bg-brand-mint/20 hover:bg-brand-mint/40 border border-brand-teal/20 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-0.5"
+              className="font-button text-[11px] font-bold text-brand-teal bg-brand-mint/20 hover:bg-brand-mint/40 border border-brand-teal/20 py-1.5 px-1 rounded-lg transition-colors flex items-center justify-center gap-1 text-center"
+              title="View verification dossier"
             >
-              <span className="material-symbols-outlined text-xs">verified</span>
-              Verify
+              <span className="material-symbols-outlined text-sm" data-fill="true">verified</span>
+              <span>Verify</span>
             </Link>
             <Link
               to={`/suppliers/${supplier.id}`}
               onClick={onOpen ? (e) => { e.preventDefault(); onOpen(supplier.id); } : undefined}
-              className={`font-button text-[11px] font-bold hover:underline flex items-center gap-0.5 ${textColorClass}`}
+              className={`font-button text-[11px] font-bold py-1.5 px-1 rounded-lg transition-colors flex items-center justify-center gap-0.5 text-center bg-surface hover:bg-surface-strong border border-hairline ${textColorClass}`}
+              title="View full profile"
             >
-              Profile <span className="material-symbols-outlined text-xs">arrow_forward</span>
+              <span>Profile</span>
+              <span className="material-symbols-outlined text-xs">arrow_forward</span>
             </Link>
           </div>
         </div>
