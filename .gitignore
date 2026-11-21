@@ -16,6 +16,8 @@ build/
 .idea/
 *.iml
 
-# MySQL
-*.sql.bak
+# PractiGen context packs
+practigen_*.json
+context_pack*.json
+
 
