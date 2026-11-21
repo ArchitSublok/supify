@@ -5,3 +5,17 @@ dist
 *.env
 *.env.*
 
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+out/
+build/
+.idea/
+*.iml
+
+# MySQL
+*.sql.bak
+
