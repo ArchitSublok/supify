@@ -1,7 +1,8 @@
 # Supify — Supplier Discovery & Evidence-Backed Verification Backend
 
 > **Pure Java Backend & Concurrency CLI | Modular Multi-Package Architecture**  
-> **Repository Structure:** Flat `src/com/supify/` layout with Windows batch runners (`run.bat`, `test.bat`)
+> **Repository Structure:** Flat `src/com/supify/` layout with Windows batch runners (`run.bat`, `test.bat`)  
+> **Architecture & Diagrams:** See [`docs/backend-architecture.md`](../docs/backend-architecture.md) for UML class diagrams, 4-layer spine sequence flows, concurrency diagrams, thread state charts, and file I/O pipelines.
 
 ---
 
