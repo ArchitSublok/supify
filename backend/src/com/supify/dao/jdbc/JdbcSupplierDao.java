@@ -6,6 +6,7 @@ import com.supify.model.Organisation;
 import com.supify.model.SupplierProfile;
 import com.supify.model.TrustSnapshot;
 import com.supify.model.enums.ListingState;
+import com.supify.model.enums.Pillar;
 import com.supify.model.enums.TrustBand;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -13,7 +14,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -182,15 +186,110 @@ public class JdbcSupplierDao implements SupplierRepository {
                 .collect(Collectors.toList());
     }
 
+    public boolean deleteOrganisationById(UUID id) {
+        String sql = "DELETE FROM organisation WHERE id = ?";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, id.toString());
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Database error deleting Organisation: " + e.getMessage(), e);
+        }
+    }
+
     @Override
     public TrustSnapshot saveSnapshot(TrustSnapshot snapshot) {
-        // In-memory or database upsert
-        return snapshot;
+        String sql = "INSERT INTO trust_snapshot (organisation_id, trust_band, overall_score, pillar_scores_json, computed_at) " +
+                     "VALUES (?, ?, ?, ?, ?) " +
+                     "ON DUPLICATE KEY UPDATE trust_band=?, overall_score=?, pillar_scores_json=?, computed_at=?";
+
+        String json = serializePillarScores(snapshot.getPillarScores());
+        Timestamp computedTs = Timestamp.from(snapshot.getComputedAt());
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, snapshot.getOrganisationId().toString());
+            ps.setString(2, snapshot.getBand().name());
+            ps.setDouble(3, snapshot.getOverallScore());
+            ps.setString(4, json);
+            ps.setTimestamp(5, computedTs);
+
+            ps.setString(6, snapshot.getBand().name());
+            ps.setDouble(7, snapshot.getOverallScore());
+            ps.setString(8, json);
+            ps.setTimestamp(9, computedTs);
+
+            ps.executeUpdate();
+            return snapshot;
+        } catch (SQLException e) {
+            throw new RuntimeException("Database error saving TrustSnapshot: " + e.getMessage(), e);
+        }
     }
 
     @Override
     public Optional<TrustSnapshot> findSnapshotByOrganisationId(UUID organisationId) {
+        String sql = "SELECT organisation_id, trust_band, overall_score, pillar_scores_json, computed_at " +
+                     "FROM trust_snapshot WHERE organisation_id = ?";
+
+        try (Connection conn = DatabaseConfig.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, organisationId.toString());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    TrustBand band = TrustBand.valueOf(rs.getString("trust_band"));
+                    double score = rs.getDouble("overall_score");
+                    Map<Pillar, Double> pillars = parsePillarScores(rs.getString("pillar_scores_json"));
+                    return Optional.of(new TrustSnapshot(organisationId, band, score, pillars));
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Database error finding TrustSnapshot: " + e.getMessage(), e);
+        }
         return Optional.empty();
+    }
+
+    private String serializePillarScores(Map<Pillar, Double> scores) {
+        if (scores == null || scores.isEmpty()) return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<Pillar, Double> entry : scores.entrySet()) {
+            if (!first) sb.append(',');
+            sb.append('"').append(entry.getKey().name()).append("\":")
+              .append(String.format(Locale.US, "%.4f", entry.getValue()));
+            first = false;
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private Map<Pillar, Double> parsePillarScores(String json) {
+        Map<Pillar, Double> map = new EnumMap<>(Pillar.class);
+        if (json == null) return map;
+        String trimmed = json.trim();
+        if (trimmed.length() < 2 || !trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+            return map;
+        }
+        String body = trimmed.substring(1, trimmed.length() - 1).trim();
+        if (body.isEmpty()) return map;
+
+        for (String pair : body.split(",")) {
+            String[] kv = pair.split(":", 2);
+            if (kv.length != 2) continue;
+            String key = kv[0].trim().replace("\"", "");
+            String val = kv[1].trim();
+            if (key.isEmpty() || val.isEmpty()) continue;
+            try {
+                map.put(Pillar.valueOf(key), Double.parseDouble(val));
+            } catch (IllegalArgumentException ignored) {
+                // Skip unknown pillar keys or unparseable scores safely
+            }
+        }
+        return map;
     }
 
     private Organisation mapRowToOrganisation(ResultSet rs) throws SQLException {

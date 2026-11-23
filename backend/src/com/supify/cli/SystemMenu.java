@@ -194,12 +194,22 @@ public class SystemMenu {
 
     private void handleJdbcStatus() {
         view.printSection("MYSQL / JDBC CONNECTION STATUS");
-        boolean connected = DatabaseConfig.testConnection();
+        boolean driverLoaded = DatabaseConfig.isDriverAvailable();
+        boolean connected = driverLoaded && DatabaseConfig.testConnection();
+
+        System.out.println("  JDBC URL:         " + DatabaseConfig.getUrl());
+        System.out.println("  DB User:          " + DatabaseConfig.getUser());
+        System.out.println("  Driver Available: " + (driverLoaded ? "YES (com.mysql.cj.jdbc.Driver)" : "NO (place mysql-connector-j JAR in backend/lib)"));
+        System.out.println("  Live Connection:  " + (connected ? "CONNECTED" : "DISCONNECTED (In-Memory mode active)"));
+
         if (connected) {
-            view.printOk("Connected to MySQL via DatabaseConfig (jdbc:mysql://localhost:3306/supify).");
+            view.printOk("Connected to MySQL server successfully.");
         } else {
-            view.printWarn("MySQL driver or server not connected; CLI is running in In-Memory mode.");
-            System.out.println("  JdbcSupplierDao is ready for MySQL integration in the next phase.");
+            String err = DatabaseConfig.getLastError();
+            if (err != null && !err.isBlank()) {
+                view.printWarn("Details: " + err);
+            }
+            System.out.println("  Tip: Run db/setup_mysql.bat to initialize schema, then set SUPIFY_DB_PASS.");
         }
         view.pressEnterToContinue();
     }
