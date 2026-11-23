@@ -11,8 +11,8 @@ It exists because of one problem: a buyer cannot cheaply tell whether a supplier
 ## What is built right now
 
 1. **React Frontend (`src/`)** — interactive SPA powered by Vite, React, React Router, Tailwind CSS, and Zustand using HTTP fixtures in `public/data/*.json` ([Frontend architecture](docs/architecture.md)).
-2. **Java Backend & Concurrency CLI (`backend/`)** — modular, zero-dependency Java application modeling the 4-layer verification spine (`Claim -> Evidence -> VerificationCheck -> Attestation`), background SLA/decay daemons, Stream API search, file I/O streams, and JDBC stubs ([Backend architecture & UML](docs/backend-architecture.md)).
-3. **MySQL Database Scaffold (`db/`)** — directory structure (`schema/`, `migrations/`, `seeds/`, `procedures/`) queued for upcoming JDBC wiring after CLI polish.
+2. **Java Backend & Concurrency CLI (`backend/`)** — modular, pure-ASCII Java application modeling the 4-layer verification spine (`Claim -> Evidence -> VerificationCheck -> Attestation`), repeatable `DemoRunner` walkthrough, background SLA/decay daemons, Stream API search, file I/O streams, checked exceptions, and full-CRUD `JdbcSupplierDao` ([Backend architecture & UML](docs/backend-architecture.md)).
+3. **MySQL 8.0 Database & JDBC (`db/`)** — normalized 9-table InnoDB schema, canonical SQL seeds, catalog/queue views, append-only ledger triggers, decay stored procedure, and `setup_mysql.bat` ([Database ER & JDBC architecture](docs/database-architecture.md)).
 
 | You can... | Where |
 | --- | --- |
@@ -50,8 +50,8 @@ Open http://localhost:5173. Build for production with `npm run build`.
 
 The pure-Java backend CLI (`backend/src/com/supify/`) runs interactively with zero external JARs using the bundled in-memory repositories and seed fixtures:
 
-- **Launch interactive CLI (`backend\run.bat`):** Compiles into `backend\bin\` and runs `com.supify.app.Main` with four switchable personas (**Buyer Discovery Console**, **Supplier Workspace**, **Verifier Station**, and **System/Concurrency/I/O Monitor**).
-- **Run automated verification suite (`backend\test.bat`):** Executes `com.supify.test.SupifyTestRunner` across seed fixtures, Stream API search, 4-layer spine decisions, `CustomTaskQueue` (`wait()`/`notifyAll()`), `PriorityBlockingQueue` escalation, CSV/binary streams, `StreamTokenizer`, custom exceptions, and `GenericRepository`.
+- **Launch interactive CLI (`backend\run.bat`):** Compiles into `backend\bin\` and runs `com.supify.app.Main` (`-cp "bin;lib\*"`) with four role consoles (**Buyer**, **Supplier**, **Verifier**, **System & I/O**) plus **`[5] Quick Guided Demo`** (`DemoRunner`) and one-key **`[1] List All Suppliers`**.
+- **Run automated verification suite (`backend\test.bat`):** Executes `com.supify.test.SupifyTestRunner` (22 assertions across seed fixtures, Stream API search, 4-layer spine decisions, `CustomTaskQueue` `wait()`/`notifyAll()`, `PriorityBlockingQueue` escalation, CSV/binary streams, `StreamTokenizer`, custom exceptions, and `GenericRepository`).
 
 ```bat
 cd backend
@@ -85,7 +85,8 @@ app/                        routing, role context, protected routes, 404
 ```
 
 **Frontend Stack:** Vite · React (JavaScript) · React Router 6 · Tailwind CSS · Zustand (HTTP JSON fixtures).  
-**Backend Stack:** Java 17+ (`backend/src/com/supify/`) · Multithreading & Daemons · Stream API · File I/O · Checked Exceptions · JDBC DAO stubs (MySQL wiring next).
+**Backend Stack:** Java 17+ (`backend/src/com/supify/`) · Multithreading & Daemons · Stream API · File I/O · Checked Exceptions · `DatabaseConfig` & full-CRUD `JdbcSupplierDao`.  
+**Database Stack:** MySQL 8.0 (`db/`) · 9 InnoDB tables · Views, Triggers & Decay Stored Procedure · `mysql-connector-j`.
 
 Dependencies point downward only. Features never import each other. All shareable state (query, filters, selected claim, comparison set, queue filter) lives in the URL; session state (drafts, shortlist) lives in localStorage.
 
@@ -114,15 +115,18 @@ These come from the design docs and are visible in the running app:
 ## Documentation
 
 - [`AGENTS.md`](AGENTS.md) — working rules, invariants, layer structure, and project status
+- [`docs/setup.md`](docs/setup.md) — end-to-end local setup, batch runners, MySQL/JDBC wiring, and demo guide
 - [`docs/understanding.md`](docs/understanding.md) — problem framing, design axioms, domain and trust model
 - [`docs/architecture.md`](docs/architecture.md) — frontend architecture: layers, state, contracts
 - [`docs/backend-architecture.md`](docs/backend-architecture.md) — backend UML class diagrams, sequence flows, concurrency & I/O architecture
+- [`docs/database-architecture.md`](docs/database-architecture.md) — MySQL 8.0 ER diagram, JDBC data flow, and axiom-to-schema mapping
 - [`backend/README.md`](backend/README.md) — Java backend compilation, `.bat` runners, syllabus mapping, and viva Q&A
+- [`db/README.md`](db/README.md) — MySQL schema, seeds, triggers, `setup_mysql.bat`, and `SUPIFY_DB_*` configuration
 - [`docs/contract/supplier-api.md`](docs/contract/supplier-api.md) — the data contract the fixtures satisfy
-- [`db/README.md`](db/README.md) — MySQL database structure roadmap
 
 ## Status
 
-- **Frontend:** Routing, Context/reducer state, Zustand dashboard, validated forms, and async workspace recovery flows running on fixtures.
-- **Backend CLI:** Pure-Java CLI (`Main`, four role consoles, concurrency daemons, I/O streams, `SupifyTestRunner`, `run.bat`/`test.bat`) implemented in `backend/`.
-- **Next Phase:** CLI comment cleanup & polish, followed by incremental MySQL schema/seeds/procedures in `db/` and live JDBC wiring (`DatabaseConfig` + `JdbcSupplierDao`).
+- **Frontend:** Routing, Context/reducer state, Zustand dashboard, validated forms, and async workspace recovery flows running on HTTP fixtures.
+- **Backend CLI:** Pure-Java CLI (`Main`, four role consoles, repeatable `DemoRunner`, pure-ASCII tables, concurrency daemons, I/O streams, `SupifyTestRunner`, and `run.bat`/`test.bat` with `-cp "bin;lib\*"`) implemented in `backend/`.
+- **Database & JDBC (Phase 1):** MySQL 8.0 schema (9 tables), canonical seeds, views, append-only triggers, decay stored procedure, `setup_mysql.bat`, env-configurable `DatabaseConfig`, and full-CRUD `JdbcSupplierDao` implemented.
+- **Next:** Add `JdbcVerificationDao`/`JdbcAuditDao` and live repository switching in `Main`.

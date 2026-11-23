@@ -62,4 +62,4 @@ Run `setup_mysql.bat` from `db\` (or double-click in Explorer). It locates `mysq
 
 Place `mysql-connector-j-*.jar` in `backend/lib/` (ignored by git via `.gitignore`). Both `backend/run.bat` and `backend/test.bat` load `-cp "bin;lib\*"` automatically, and **System & I/O → `[6] Database (JDBC) Status`** reports driver availability and live connectivity.
 
-See [`docs/understanding.md`](../docs/understanding.md) §3 for the full entity-relationship design.
+See [`docs/database-architecture.md`](../docs/database-architecture.md) for the full 9-table ER diagram and JDBC execution flow, [`docs/setup.md`](../docs/setup.md) for step-by-step installation, and [`docs/understanding.md`](../docs/understanding.md) §3 for the conceptual domain model.

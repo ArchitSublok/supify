@@ -2,7 +2,7 @@
 
 > **Pure Java Backend & Concurrency CLI | Modular Multi-Package Architecture**  
 > **Repository Structure:** Flat `src/com/supify/` layout with Windows batch runners (`run.bat`, `test.bat`)  
-> **Architecture & Diagrams:** See [`docs/backend-architecture.md`](../docs/backend-architecture.md) for UML class diagrams, 4-layer spine sequence flows, concurrency diagrams, thread state charts, and file I/O pipelines.
+> **Architecture & Setup:** See [`docs/backend-architecture.md`](../docs/backend-architecture.md) (UML class diagrams & flowcharts), [`docs/database-architecture.md`](../docs/database-architecture.md) (MySQL ER & JDBC flow), and [`docs/setup.md`](../docs/setup.md) (setup & troubleshooting).
 
 ---
 
@@ -33,7 +33,7 @@ The **Supify Backend & CLI** is a modular, pure-Java platform engineered for pro
 | **Character Streams & CSV** | `FileReader`, `FileWriter`, `BufferedReader`, `BufferedWriter`, collection CSV round-trip | `CsvDataExporterImporter.java` |
 | **Byte Streams & Binary I/O** | `FileInputStream`, `FileOutputStream`, `DataInputStream`, `DataOutputStream` with `0x53504659` (`SPFY`) header | `AuditByteStreamHandler.java` |
 | **StreamTokenizer** | Token classification (`TT_WORD`, `TT_NUMBER`, operators) for verification rules | `RuleStreamTokenizer.java` |
-| **JDBC Architecture** *(Next Phase)* | `DriverManager`, `Connection`, `PreparedStatement` parameter binding, `ResultSet` cursor mapping | `DatabaseConfig.java`, `JdbcSupplierDao.java` |
+| **JDBC Architecture** | `DriverManager`, `Connection`, `SUPIFY_DB_*` config, `PreparedStatement` binding, `ResultSet` cursor mapping & `TrustSnapshot` JSON CRUD | `DatabaseConfig.java`, `JdbcSupplierDao.java` |
 
 ---
 
@@ -47,8 +47,9 @@ backend/
 │           ├── app/
 │           │   └── Main.java                     # Interactive CLI launcher, daemons, shutdown hook
 │           ├── cli/
-│           │   ├── BuyerMenu.java                # Discovery search, dossier viewer, comparison tray
-│           │   ├── ConsoleView.java              # ANSI formatting, EOF-safe prompts, alert draining
+│           │   ├── BuyerMenu.java                # One-key list, search, dossier viewer, compare tray
+│           │   ├── ConsoleView.java              # Pure-ASCII prompts, helpers & non-blocking alert drain
+│           │   ├── DemoRunner.java               # Repeatable 5-step guided end-to-end walkthrough
 │           │   ├── SessionContext.java           # Active persona role & 4-vendor comparison tray
 │           │   ├── SupplierMenu.java             # Standings, 4-step intake wizard, decay timers
 │           │   ├── SystemMenu.java               # Thread monitor, CSV, byte streams, tokenizer, JDBC status
@@ -89,13 +90,13 @@ backend/
 │           │   └── VerificationService.java      # Intake & atomic Pass/Fail attestation recording
 │           ├── util/
 │           │   ├── SeedDataFactory.java          # 5 canonical fixtures + 35s live expiring attestation
-│           │   └── TableFormatter.java           # Unicode box-drawing terminal table renderer
+│           │   └── TableFormatter.java           # Pure-ASCII terminal table renderer (`+---+`)
 │           └── test/
-│               └── SupifyTestRunner.java         # Automated zero-dependency verification suite
+│               └── SupifyTestRunner.java         # Automated zero-dependency verification suite (22 checks)
 ├── bin/                                          # Compiled bytecode (.class files)
-├── lib/                                          # External JAR directory (e.g., mysql-connector-j)
-├── run.bat                                       # One-click Windows compile & CLI launcher
-├── test.bat                                      # One-click Windows compile & test runner
+├── lib/                                          # External JAR directory (e.g., mysql-connector-j-*.jar)
+├── run.bat                                       # One-click Windows compile & CLI launcher (-cp "bin;lib\*")
+├── test.bat                                      # One-click Windows compile & test runner (-cp "bin;lib\*")
 └── README.md
 ```
 
@@ -103,12 +104,14 @@ backend/
 
 ## 4. Class Responsibilities
 
-- **`com.supify.app.Main`**: Bootstraps in-memory repositories, populates fixtures via `SeedDataFactory`, launches `DecayMonitorDaemon` and `SlaEscalationDaemon`, wires all four role consoles, and handles graceful shutdown.
+- **`com.supify.app.Main`**: Bootstraps in-memory repositories, populates fixtures via `SeedDataFactory`, launches `DecayMonitorDaemon` and `SlaEscalationDaemon`, wires the 4 role consoles + `DemoRunner`, and handles graceful shutdown.
+- **`com.supify.cli.DemoRunner`**: Runs an isolated, repeatable 5-step walkthrough showcasing Stream discovery, claim + evidence attachment, verifier PASS decision + trust recalculation, `PriorityBlockingQueue` escalation + `AlertBuffer`, `RuleStreamTokenizer`, and active JVM thread count.
 - **`com.supify.dao.memory.InMemoryVerificationRepository`**: Unifies `Claim`, `Evidence`, `VerificationCheck`, `Attestation`, and `VerificationTask` mutations under one `ReentrantReadWriteLock` alongside a `PriorityBlockingQueue`.
+- **`com.supify.dao.jdbc.JdbcSupplierDao` & `DatabaseConfig`**: Reads `SUPIFY_DB_*` / `-Dsupify.db.*` config, detects the MySQL JDBC driver, and performs full-CRUD MySQL persistence across `organisation`, `supplier_profile`, and `trust_snapshot`.
 - **`com.supify.service.SupplierSearchService`**: Combines dynamic `Predicate` filters, method references, stream sorting/pagination, and `PaginatedResult` mapping.
 - **`com.supify.service.TrustEvaluationService`**: Computes weighted multi-pillar scores from active attestations only, enforcing Trust Band caps when foundational identity or legal claims are missing.
 - **`com.supify.exception.*`**: Checked exception hierarchy (`SupplierNotFoundException`, `VerificationException`, `InvalidDataException`) extending `java.lang.Exception`.
-- **`com.supify.test.SupifyTestRunner`**: Automated 9-part verification runner validating fixtures, Stream search, 4-layer spine decisions, producer-consumer `wait()`/`notifyAll()`, priority heap re-sorting, CSV I/O, binary streams, `StreamTokenizer`, and exceptions.
+- **`com.supify.test.SupifyTestRunner`**: Automated 10-group (22-assertion) verification runner validating fixtures, Stream search, 4-layer spine decisions, producer-consumer `wait()`/`notifyAll()`, priority heap re-sorting, CSV I/O, binary streams, `StreamTokenizer`, custom exceptions, and `GenericRepository`.
 
 ---
 
@@ -134,11 +137,11 @@ From Windows Explorer or Command Prompt inside `backend\`:
    ```
 3. Launch the interactive CLI application:
    ```bat
-   java -cp bin com.supify.app.Main
+   java -cp "bin;lib\*" com.supify.app.Main
    ```
 4. Run the automated verification test suite:
    ```bat
-   java -cp bin com.supify.test.SupifyTestRunner
+   java -cp "bin;lib\*" com.supify.test.SupifyTestRunner
    ```
 
 ---
@@ -146,10 +149,11 @@ From Windows Explorer or Command Prompt inside `backend\`:
 ## 6. Sample Scenarios & Evaluation Viva Q&A
 
 ### Key Demo Scenarios
-1. **Buyer Multi-Facet Search (`Main -> [1] -> [1]`):** Press Enter across prompts to list all 5 suppliers ranked by verified trust score, or filter by `Fasteners` / `score`.
-2. **Verifier SLA Priority Escalation (`Main -> [3] -> [4]`):** Escalates a pending task in `PriorityBlockingQueue` via remove + mutate + re-offer so the priority heap re-balances immediately.
-3. **35-Second Live Decay Demo (`Main -> [2] -> [3]`):** Observe the seeded short-lived attestation count down and trigger a non-intrusive `DecayMonitorDaemon` alert in `AlertBuffer` on expiration.
-4. **File I/O & Tokenizer Diagnostics (`Main -> [4]`):** Inspect live JVM thread states, run CSV export/import to `data/`, write/read binary `SPFY` audit packets, and tokenize rule expressions.
+1. **5-Step Guided Walkthrough (`Main -> [5]`):** Runs `DemoRunner` end-to-end on isolated fixtures without leaving stray state in your live session.
+2. **One-Key Buyer Supplier List (`Main -> [1] -> [1]`):** Prints all 5 seeded suppliers in pure ASCII sorted by verified trust score (or choose `[2]` to filter by keyword/category).
+3. **Verifier SLA Priority Escalation (`Main -> [3] -> [4]`):** Escalates a pending task in `PriorityBlockingQueue` via remove + mutate + re-offer so the priority heap re-balances immediately.
+4. **35-Second Live Decay Demo (`Main -> [2] -> [3]`):** Observe the seeded short-lived attestation count down and trigger a non-intrusive `DecayMonitorDaemon` alert in `AlertBuffer` on expiration.
+5. **File I/O, Tokenizer & JDBC Status (`Main -> [4]`):** Inspect live JVM thread states, run CSV export/import to `data/`, write/read binary `SPFY` audit packets, tokenize rule expressions, and inspect MySQL driver/connection status (`[6]`).
 
 ### Viva Q&A
 

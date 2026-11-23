@@ -53,5 +53,5 @@ still requires server-side idempotency and validation; this is not a shared API.
 collapsed demo panel. Storage failures reject normally; cancellation rejects with
 `AbortError` and is not presented as a failure to the user.
 
-See [the React workspace guide](../react-workspace.md) for state ownership,
+See [the frontend architecture guide](../architecture.md) for state ownership,
 validation behavior, routes, and verification instructions.
