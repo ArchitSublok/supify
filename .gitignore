@@ -13,6 +13,8 @@ dist
 target/
 out/
 build/
+backend/bin/
+backend/data/
 .idea/
 *.iml
 

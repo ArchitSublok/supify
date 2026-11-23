@@ -25,6 +25,10 @@ public final class AlertBuffer {
         }
     }
 
+    public void postAlert(String alertMessage) {
+        post(alertMessage);
+    }
+
     public List<String> drainAlerts() {
         List<String> drained = new ArrayList<>();
         String alert;
