@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 Working agreement for this repository. Read this first, every session.
 
@@ -20,9 +20,12 @@ scope-control test for the whole project.
 
 | Document | Contains | Read when |
 | --- | --- | --- |
-| `CLAUDE.md` (this) | Working rules, invariants, conventions | Always |
+| `AGENTS.md` (this) | Working rules, invariants, conventions | Always |
 | `docs/understanding.md` | Problem framing, design axioms, domain model, trust model, lifecycles | Before any design or modelling decision |
-| `docs/architecture.md` | Frontend architecture: layers, state, contracts, components | Before writing any code |
+| `docs/architecture.md` | Frontend architecture: layers, state, contracts, components | Before writing frontend code |
+| `docs/backend-architecture.md` | Backend package layers, UML class diagrams, sequence/concurrency/I/O flows | Before writing or extending Java backend code |
+| `backend/README.md` | Java CLI setup, Windows batch runners (`run.bat`/`test.bat`), syllabus map | Compiling, running, or testing `backend/` |
+| `db/README.md` | MySQL database structure (`schema/`, `migrations/`, `seeds/`, `procedures/`) | Before starting DB/JDBC implementation |
 
 **Do not duplicate content between these.** If a rule needs to change, change it in one place and
 link. Drift between documents is worse than a missing document.
@@ -36,10 +39,9 @@ link. Drift between documents is worse than a missing document.
 | Problem framing | Settled — `docs/understanding.md` |
 | Domain & trust model | Settled — `docs/understanding.md` §3–§5 |
 | Frontend architecture | Settled — `docs/architecture.md` |
-| **Stack** | **Chosen (Eval-1 scope):** Vite + React (JavaScript) + react-router-dom. Fixtures only, no backend/DB. Restricted to course topics through lecture 42. |
-| Database | Deferred. Modelled in `understanding.md` §3, not being built yet. |
-| Backend | Deferred. Frontend builds against a contract + fixtures. |
-| Code | Eval-1 scope implemented — Vite + React + react-router-dom, fixtures over HTTP, four consoles, comparison and claim inspector. Backend still deferred. |
+| **Frontend** | **Implemented:** Vite + React (JavaScript) + react-router-dom, fixtures over HTTP (`public/data/*.json`), four consoles, comparison, and claim inspector. Keep decoupled from `backend/`. |
+| **Backend** | **Implemented (CLI & Concurrency scope):** Pure Java under `backend/src/com/supify/` with zero external dependencies — 4-layer verification spine, background decay/SLA daemons, Stream API search, file I/O streams, checked exceptions, `SupifyTestRunner`, and `run.bat`/`test.bat`. |
+| **Database** | **Next phase:** MySQL 8.0 schema/seeds/procedures in `db/` + live JDBC wiring via `DatabaseConfig` and `JdbcSupplierDao` (queued after CLI comment cleanup and polish). |
 
 Anything stack-dependent is marked `TBD` in the architecture doc. **Do not silently resolve a
 `TBD`.** Raise it.
