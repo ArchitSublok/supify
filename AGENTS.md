@@ -21,11 +21,13 @@ scope-control test for the whole project.
 | Document | Contains | Read when |
 | --- | --- | --- |
 | `AGENTS.md` (this) | Working rules, invariants, conventions | Always |
+| `docs/setup.md` | Prerequisites, frontend/CLI/MySQL setup, demo walkthrough, troubleshooting | Setting up or running any layer locally |
 | `docs/understanding.md` | Problem framing, design axioms, domain model, trust model, lifecycles | Before any design or modelling decision |
 | `docs/architecture.md` | Frontend architecture: layers, state, contracts, components | Before writing frontend code |
 | `docs/backend-architecture.md` | Backend package layers, UML class diagrams, sequence/concurrency/I/O flows | Before writing or extending Java backend code |
+| `docs/database-architecture.md` | MySQL 8.0 ER diagram, JDBC execution flow, and axiom-to-schema mapping | Before modifying SQL or JDBC DAOs |
 | `backend/README.md` | Java CLI setup, Windows batch runners (`run.bat`/`test.bat`), syllabus map | Compiling, running, or testing `backend/` |
-| `db/README.md` | MySQL database structure (`schema/`, `migrations/`, `seeds/`, `procedures/`) | Before starting DB/JDBC implementation |
+| `db/README.md` | MySQL schema, canonical seeds, views/triggers/procedures, `setup_mysql.bat` | Initializing or administering MySQL in `db/` |
 
 **Do not duplicate content between these.** If a rule needs to change, change it in one place and
 link. Drift between documents is worse than a missing document.
@@ -40,8 +42,8 @@ link. Drift between documents is worse than a missing document.
 | Domain & trust model | Settled — `docs/understanding.md` §3–§5 |
 | Frontend architecture | Settled — `docs/architecture.md` |
 | **Frontend** | **Implemented:** Vite + React (JavaScript) + react-router-dom, fixtures over HTTP (`public/data/*.json`), four consoles, comparison, and claim inspector. Keep decoupled from `backend/`. |
-| **Backend** | **Implemented (CLI & Concurrency scope):** Pure Java under `backend/src/com/supify/` with zero external dependencies — 4-layer verification spine, background decay/SLA daemons, Stream API search, file I/O streams, checked exceptions, `SupifyTestRunner`, and `run.bat`/`test.bat`. |
-| **Database** | **Next phase:** MySQL 8.0 schema/seeds/procedures in `db/` + live JDBC wiring via `DatabaseConfig` and `JdbcSupplierDao` (queued after CLI comment cleanup and polish). |
+| **Backend** | **Implemented:** Pure Java in `backend/src/com/supify/` (56 `.java` files) — 4-layer verification spine, pure-ASCII interactive CLI with 4 role consoles + repeatable `DemoRunner`, concurrency daemons, file I/O streams, checked exceptions, `SupifyTestRunner`, `run.bat`/`test.bat` (`-cp "bin;lib\*"`), env-configurable `DatabaseConfig`, and full-CRUD `JdbcSupplierDao`. |
+| **Database** | **Phase 1 implemented:** MySQL 8.0 normalized schema (9 InnoDB tables), idempotent canonical seeds, catalog/queue views, append-only ledger triggers, decay stored procedure, and `setup_mysql.bat` in `db/`; next increment is `JdbcVerificationDao`/`JdbcAuditDao` and live DAO switching in `Main`. |
 
 Anything stack-dependent is marked `TBD` in the architecture doc. **Do not silently resolve a
 `TBD`.** Raise it.
