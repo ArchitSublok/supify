@@ -14,6 +14,7 @@ public class ConsoleView {
     public static final String BLUE = "\u001B[34m";
     public static final String MAGENTA = "\u001B[35m";
 
+    private static final String LINE = "=".repeat(82);
     private final Scanner scanner;
 
     public ConsoleView() {
@@ -26,31 +27,48 @@ public class ConsoleView {
 
     public void checkAndPrintAlerts() {
         List<String> alerts = AlertBuffer.getInstance().drainAlerts();
-        if (!alerts.isEmpty()) {
-            System.out.println();
-            for (String alert : alerts) {
-                System.out.println(YELLOW + BOLD + "⚡ [BACKGROUND DAEMON ALERT] " + RESET + YELLOW + alert + RESET);
-            }
-            System.out.println();
+        if (alerts.isEmpty()) return;
+
+        System.out.println();
+        for (String alert : alerts) {
+            System.out.println(YELLOW + BOLD + "[ALERT] " + RESET + YELLOW + alert + RESET);
         }
+        System.out.println();
     }
 
     public void printBanner(SessionContext session) {
         checkAndPrintAlerts();
-        System.out.println(CYAN + BOLD + "═".repeat(82) + RESET);
-        System.out.println(CYAN + BOLD + "   SUPIFY :: Supplier Discovery & Evidence-Backed Verification Platform (CLI)" + RESET);
-        System.out.printf("   Active Role: " + GREEN + BOLD + "[%s]" + RESET + " (%s) | Comparison Tray: " + YELLOW + "[%d/4 vendors]" + RESET + "\n",
-                session.getCurrentRole().name(),
-                session.getCurrentUserName(),
-                session.getComparisonTray().size());
-        System.out.println(CYAN + BOLD + "═".repeat(82) + RESET);
+        System.out.println(CYAN + BOLD + LINE + RESET);
+        System.out.println(CYAN + BOLD + "  SUPIFY :: Supplier Discovery & Evidence-Backed Verification" + RESET);
+        System.out.printf("  Role: %s[%s]%s (%s)  |  Compare Tray: %s[%d/4 vendors]%s%n",
+                GREEN + BOLD, session.getCurrentRole().name(), RESET, session.getCurrentUserName(),
+                YELLOW, session.getComparisonTray().size(), RESET);
+        System.out.println(CYAN + BOLD + LINE + RESET);
+    }
+
+    public void printSection(String title) {
+        System.out.println();
+        System.out.println(CYAN + BOLD + LINE + RESET);
+        System.out.println(CYAN + BOLD + "  " + title + RESET);
+        System.out.println(CYAN + BOLD + LINE + RESET);
+    }
+
+    public void printOk(String msg) {
+        System.out.println(GREEN + BOLD + "[OK] " + RESET + GREEN + msg + RESET);
+    }
+
+    public void printWarn(String msg) {
+        System.out.println(YELLOW + "[!] " + msg + RESET);
+    }
+
+    public void printError(String msg) {
+        System.out.println(RED + "[ERROR] " + msg + RESET);
     }
 
     public String promptString(String label) {
         checkAndPrintAlerts();
         System.out.print(BOLD + label + ": " + RESET);
-        if (!scanner.hasNextLine()) return "";
-        return scanner.nextLine().trim();
+        return scanner.hasNextLine() ? scanner.nextLine().trim() : "";
     }
 
     public int promptInt(String label, int defaultValue) {

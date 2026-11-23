@@ -1,12 +1,8 @@
 package com.supify.util;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-/**
- * Utility for rendering formatted ASCII/Unicode terminal tables.
- */
+/** Renders ASCII tables with ANSI-aware column padding. */
 public class TableFormatter {
 
     public static String renderTable(List<String> headers, List<List<String>> rows) {
@@ -18,57 +14,42 @@ public class TableFormatter {
         for (int i = 0; i < cols; i++) {
             widths[i] = stripAnsi(headers.get(i)).length();
         }
-
         for (List<String> row : rows) {
             for (int i = 0; i < Math.min(cols, row.size()); i++) {
                 widths[i] = Math.max(widths[i], stripAnsi(row.get(i)).length());
             }
         }
 
+        String border = buildBorder(widths);
         StringBuilder sb = new StringBuilder();
+        sb.append(border);
+        appendRow(sb, headers, widths, cols);
+        sb.append(border);
 
-        // Top border
-        sb.append("┌");
-        for (int i = 0; i < cols; i++) {
-            sb.append("─".repeat(widths[i] + 2));
-            if (i < cols - 1) sb.append("┬");
+        for (List<String> row : rows) {
+            appendRow(sb, row, widths, cols);
         }
-        sb.append("┐\n");
 
-        // Headers
-        sb.append("│");
-        for (int i = 0; i < cols; i++) {
-            sb.append(" ").append(padRight(headers.get(i), widths[i])).append(" │");
+        sb.append(border);
+        return sb.toString();
+    }
+
+    private static String buildBorder(int[] widths) {
+        StringBuilder sb = new StringBuilder("+");
+        for (int w : widths) {
+            sb.append("-".repeat(w + 2)).append("+");
         }
         sb.append("\n");
-
-        // Header separator
-        sb.append("├");
-        for (int i = 0; i < cols; i++) {
-            sb.append("─".repeat(widths[i] + 2));
-            if (i < cols - 1) sb.append("┼");
-        }
-        sb.append("┤\n");
-
-        // Data rows
-        for (List<String> row : rows) {
-            sb.append("│");
-            for (int i = 0; i < cols; i++) {
-                String val = i < row.size() ? row.get(i) : "";
-                sb.append(" ").append(padRight(val, widths[i])).append(" │");
-            }
-            sb.append("\n");
-        }
-
-        // Bottom border
-        sb.append("└");
-        for (int i = 0; i < cols; i++) {
-            sb.append("─".repeat(widths[i] + 2));
-            if (i < cols - 1) sb.append("┴");
-        }
-        sb.append("┘\n");
-
         return sb.toString();
+    }
+
+    private static void appendRow(StringBuilder sb, List<String> row, int[] widths, int cols) {
+        sb.append("|");
+        for (int i = 0; i < cols; i++) {
+            String val = (i < row.size() && row.get(i) != null) ? row.get(i) : "";
+            sb.append(" ").append(padRight(val, widths[i])).append(" |");
+        }
+        sb.append("\n");
     }
 
     private static String padRight(String s, int n) {
