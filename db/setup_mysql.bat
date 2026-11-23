@@ -1,0 +1,41 @@
+@echo off
+cd /d "%~dp0"
+echo ==========================================================
+echo   Supify MySQL 8.0 Schema, Seed ^& Procedure Setup
+echo ==========================================================
+
+set "MYSQL_EXE="
+where mysql >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    for /f "delims=" %%I in ('where mysql') do (
+        set "MYSQL_EXE=%%I"
+        goto :found_mysql
+    )
+)
+if exist "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" (
+    set "MYSQL_EXE=C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+)
+
+:found_mysql
+if "%MYSQL_EXE%"=="" (
+    echo [ERROR] mysql.exe not found in PATH or C:\Program Files\MySQL\MySQL Server 8.0\bin\
+    pause
+    exit /b 1
+)
+
+set "DB_USER=root"
+set /p DB_USER="Enter MySQL username [root]: "
+
+echo.
+echo Loading schema, canonical seed data, and views/procedures...
+"%MYSQL_EXE%" -u "%DB_USER%" -p -e "SOURCE schema/01_supify_schema.sql; SOURCE seeds/01_canonical_suppliers.sql; SOURCE procedures/01_views_and_procedures.sql;"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] MySQL setup failed.
+    pause
+    exit /b %ERRORLEVEL%
+)
+
+echo.
+echo [OK] Supify MySQL database 'supify' initialized successfully!
+pause

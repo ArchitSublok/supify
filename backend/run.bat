@@ -11,5 +11,5 @@ if %ERRORLEVEL% NEQ 0 (
     pause
     exit /b %ERRORLEVEL%
 )
-java -cp bin com.supify.app.Main
+java -cp "bin;lib\*" com.supify.app.Main
 pause
