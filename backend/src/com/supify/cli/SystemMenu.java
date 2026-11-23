@@ -91,7 +91,7 @@ public class SystemMenu {
         System.out.println(ConsoleView.CYAN + ConsoleView.BOLD + "\n=== CSV EXPORT / IMPORT VIA CHARACTER STREAMS ===" + ConsoleView.RESET);
         System.out.println("Demonstrating FileWriter, BufferedWriter, FileReader, BufferedReader, and Collection integration.");
 
-        File exportDir = new File("backend/data");
+        File exportDir = new File("data");
         if (!exportDir.exists()) exportDir.mkdirs();
         File csvFile = new File(exportDir, "suppliers_catalog_export.csv");
 
@@ -138,7 +138,7 @@ public class SystemMenu {
         System.out.println(ConsoleView.CYAN + ConsoleView.BOLD + "\n=== BINARY AUDIT STREAM & MAGIC BYTE HEADER ===" + ConsoleView.RESET);
         System.out.println("Demonstrating FileOutputStream, FileInputStream, DataOutputStream, DataInputStream, and header verification.");
 
-        File exportDir = new File("backend/data");
+        File exportDir = new File("data");
         if (!exportDir.exists()) exportDir.mkdirs();
         File binaryFile = new File(exportDir, "audit_ledger.bin");
 

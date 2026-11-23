@@ -1,4 +1,4 @@
-package com.supify;
+package com.supify.app;
 
 import com.supify.cli.BuyerMenu;
 import com.supify.cli.ConsoleView;
@@ -27,7 +27,7 @@ import com.supify.util.SeedDataFactory;
  * - File I/O (CSV Character Streams, Binary Byte Streams, StreamTokenizer)
  * - JDBC Architecture with fallback to atomic In-Memory repositories
  */
-public class SupifyApplication {
+public class Main {
 
     public static void main(String[] args) {
         // 1. Initialize Thread-Safe In-Memory Repositories
