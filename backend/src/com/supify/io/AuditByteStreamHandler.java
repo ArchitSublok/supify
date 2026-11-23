@@ -11,20 +11,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Demonstrates:
- * - Byte streams: FileInputStream, FileOutputStream, DataInputStream, DataOutputStream
- * - Binary file encoding & decoding with magic header verification
- * - Exception-safe resource handling with try-with-resources
- */
+/** Reads and writes binary audit records framed with a magic SPFY header. */
 public class AuditByteStreamHandler {
     private static final int MAGIC_HEADER = 0x53504659; // "SPFY"
 
     public record BinaryAuditRecord(long timestamp, String action, String payload) {}
 
-    /**
-     * Appends an audit event as raw binary bytes using FileOutputStream.
-     */
     public static void appendBinaryRecord(File file, String action, String payload) throws IOException {
         boolean isNewFile = !file.exists() || file.length() == 0;
 
@@ -32,7 +24,6 @@ public class AuditByteStreamHandler {
              DataOutputStream dos = new DataOutputStream(fos)) {
 
             if (isNewFile) {
-                // Write magic header once
                 dos.writeInt(MAGIC_HEADER);
             }
 
@@ -49,9 +40,6 @@ public class AuditByteStreamHandler {
         }
     }
 
-    /**
-     * Reads all binary audit events using FileInputStream.
-     */
     public static List<BinaryAuditRecord> readBinaryRecords(File file) throws IOException {
         List<BinaryAuditRecord> records = new ArrayList<>();
         if (!file.exists()) return records;

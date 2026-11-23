@@ -4,10 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Immutable audit event capturing all consequential platform mutations.
- * Uses atomic sequence counter for strict monotonicity.
- */
+/** Immutable audit record stamped with a strictly increasing AtomicLong sequence number. */
 public final class AuditEvent implements Identifiable<Long> {
     private static final AtomicLong SEQUENCE = new AtomicLong(1000);
 

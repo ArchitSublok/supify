@@ -5,10 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-/**
- * Generic repository interface demonstrating Java Generics, type safety,
- * diamond operators, and bounded wildcards (? super T).
- */
+/** Generic CRUD repository contract with wildcard predicate filtering. */
 public interface GenericRepository<T extends Identifiable<ID>, ID> {
     T save(T entity);
 

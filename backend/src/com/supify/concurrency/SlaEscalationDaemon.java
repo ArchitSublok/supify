@@ -9,12 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
 
-/**
- * Background worker demonstrating:
- * - Daemon thread execution
- * - Heap re-heapification: Mutating priority in place does not re-sort a heap,
- *   so escalated tasks are removed and re-offered to PriorityBlockingQueue.
- */
+/** Background daemon that boosts near-SLA task priority and re-balances the heap. */
 public class SlaEscalationDaemon extends Thread {
     private final VerificationRepository verificationRepo;
     private final long pollIntervalMillis;

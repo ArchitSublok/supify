@@ -6,12 +6,7 @@ import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Diagnostic utility demonstrating:
- * - Thread lifecycle and scheduling awareness
- * - NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED states
- * - Daemon threads, priorities, and execution tracing
- */
+/** Captures live JVM thread states, priorities, and daemon flags for diagnostics. */
 public final class ThreadLifecycleMonitor {
 
     public record ThreadSnapshot(

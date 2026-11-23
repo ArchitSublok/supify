@@ -16,12 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Demonstrates:
- * - Character streams: FileReader, FileWriter, BufferedReader, BufferedWriter
- * - File Handling + Collections Integration: Collection import/export
- * - Input validation & exception-safe try-with-resources
- */
+/** Exports and imports supplier profiles as CSV using buffered character streams. */
 public class CsvDataExporterImporter {
 
     public static class ExportRecord {
@@ -50,14 +45,10 @@ public class CsvDataExporterImporter {
         }
     }
 
-    /**
-     * Exports a collection of suppliers to a CSV file using character streams (FileWriter + BufferedWriter).
-     */
     public static void exportSuppliersToCsv(File file, Collection<SupplierProfile> profiles, Map<UUID, Organisation> orgMap) throws IOException {
         try (FileWriter fw = new FileWriter(file);
              BufferedWriter bw = new BufferedWriter(fw)) {
 
-            // CSV Header
             bw.write("org_id,legal_name,category,location,capacity,capacity_unit,moq,lead_time,trust_band,trust_score");
             bw.newLine();
 
@@ -85,10 +76,6 @@ public class CsvDataExporterImporter {
         }
     }
 
-    /**
-     * Imports records from a CSV file using character streams (FileReader + BufferedReader).
-     * Demonstrates parsing, data validation, and building collection objects.
-     */
     public static List<ExportRecord> importSuppliersFromCsv(File file) throws IOException {
         List<ExportRecord> records = new ArrayList<>();
         if (!file.exists()) {

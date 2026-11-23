@@ -22,17 +22,11 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Pure Java seed data factory. Zero external dependencies.
- * Directly initializes canonical fixtures from the frontend (Aravind, Monarch, Kavach, Zenith, Suryodaya).
- * Injects a live 35-second expiring attestation for testing and demonstrating the background decay monitor!
- */
+/** Populates canonical supplier fixtures, claims, and a 35-second expiring attestation. */
 public class SeedDataFactory {
 
     public static void populate(SupplierRepository supplierRepo, VerificationRepository verificationRepo) {
-        // -------------------------------------------------------------
         // Supplier 1: Aravind Fasteners Private Limited (Coimbatore, TN)
-        // -------------------------------------------------------------
         Organisation aravindOrg = new Organisation(
                 "Aravind Fasteners Private Limited",
                 "Aravind Fasteners",
@@ -108,9 +102,7 @@ public class SeedDataFactory {
         VerificationTask task1 = new VerificationTask(capacityClaim.getId(), aravindOrg.getId(), "Aravind Fasteners", "Cold Heading Production Capacity (50T/mo)", 95, false, Instant.now().plus(Duration.ofHours(1)));
         verificationRepo.enqueueTask(task1);
 
-        // -------------------------------------------------------------
         // Supplier 2: Monarch Industrial Assemblies (Pune, Maharashtra)
-        // -------------------------------------------------------------
         Organisation monarchOrg = new Organisation(
                 "Monarch Industrial Assemblies",
                 "Monarch Industries",
@@ -149,9 +141,7 @@ public class SeedDataFactory {
         VerificationTask task2 = new VerificationTask(monarchClaim.getId(), monarchOrg.getId(), "Monarch Industrial Assemblies", "ISO 14001 Environmental Management", 90, true, Instant.now().plus(Duration.ofHours(4)));
         verificationRepo.enqueueTask(task2);
 
-        // -------------------------------------------------------------
         // Supplier 3: Kavach Industrial Safety Systems (Ahmedabad, Gujarat)
-        // -------------------------------------------------------------
         Organisation kavachOrg = new Organisation(
                 "Kavach Industrial Safety Systems",
                 "Kavach Safety",
@@ -190,9 +180,7 @@ public class SeedDataFactory {
         VerificationTask task3 = new VerificationTask(kavachClaim.getId(), kavachOrg.getId(), "Kavach Industrial Safety Systems", "State PCB Consent to Operate (CTO)", 75, false, Instant.now().plus(Duration.ofHours(18)));
         verificationRepo.enqueueTask(task3);
 
-        // -------------------------------------------------------------
         // Supplier 4: Zenith Aerospace Electronics (Bengaluru, Karnataka)
-        // -------------------------------------------------------------
         Organisation zenithOrg = new Organisation(
                 "Zenith Aerospace Electronics",
                 "Zenith Aero",
@@ -224,9 +212,7 @@ public class SeedDataFactory {
         zenithPillars.put(Pillar.CAPABILITY, 0.88);
         supplierRepo.saveSnapshot(new TrustSnapshot(zenithOrg.getId(), TrustBand.AUDITED, 0.940, zenithPillars));
 
-        // -------------------------------------------------------------
         // Supplier 5: Suryodaya Solar Tech LLP (Jaipur, Rajasthan)
-        // -------------------------------------------------------------
         Organisation suryodayaOrg = new Organisation(
                 "Suryodaya Solar Tech LLP",
                 "Suryodaya Solar",

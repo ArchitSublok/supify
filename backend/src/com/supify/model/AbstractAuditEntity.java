@@ -4,10 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * Base abstract class demonstrating OOP inheritance and encapsulation.
- * All mutable domain entities extend this base class to inherit tracking timestamps.
- */
+/** Base entity supplying UUID identity and creation/update timestamps. */
 public abstract class AbstractAuditEntity implements Identifiable<UUID> {
     private final UUID id;
     private final Instant createdAt;

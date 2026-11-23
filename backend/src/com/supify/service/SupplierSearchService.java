@@ -15,13 +15,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-/**
- * Demonstrates:
- * - Lambda expressions & functional interfaces (Predicate, Function, Comparator)
- * - Method references (Class::method, instance::method)
- * - Stream fundamentals and intermediate operations: filter(), map(), sorted(), distinct(), skip(), limit()
- * - Terminal operations and Collectors
- */
+/** Searches, filters, sorts, and paginates supplier listings using Stream pipelines. */
 public class SupplierSearchService {
     private final SupplierRepository supplierRepo;
 
@@ -47,9 +41,6 @@ public class SupplierSearchService {
         this.supplierRepo = Objects.requireNonNull(supplierRepo, "supplierRepo must not be null");
     }
 
-    /**
-     * Multi-faceted supplier search utilizing functional Stream pipelines.
-     */
     public PaginatedResult<SupplierSearchResult> search(
             String keywordQuery,
             String categoryFilter,
@@ -60,7 +51,6 @@ public class SupplierSearchService {
             int page,
             int pageSize) {
 
-        // Build composite predicates using lambda syntax
         Predicate<SupplierProfile> profilePredicate = p -> true;
 
         if (categoryFilter != null && !categoryFilter.trim().isEmpty()) {
@@ -76,11 +66,9 @@ public class SupplierSearchService {
             profilePredicate = profilePredicate.and(p -> p.getCapacityPerMonth() >= minCapacity);
         }
 
-        // Preload organisations map for joining
         Map<UUID, Organisation> orgMap = supplierRepo.findAllOrganisations().stream()
                 .collect(Collectors.toMap(Organisation::getId, Function.identity()));
 
-        // Stream pipeline
         List<SupplierSearchResult> fullMatched = supplierRepo.findAllProfiles().stream()
                 .filter(profilePredicate)
                 .map(p -> {
@@ -110,11 +98,10 @@ public class SupplierSearchService {
                             || r.category().toLowerCase().contains(q)
                             || r.location().toLowerCase().contains(q);
                 })
-                .distinct() // distinct operations
-                .sorted(getComparator(sortBy, ascending)) // sorted operation
+                .distinct()
+                .sorted(getComparator(sortBy, ascending))
                 .collect(Collectors.toList());
 
-        // Apply pagination intermediate operations: skip() and limit()
         int total = fullMatched.size();
         int offset = Math.max(0, (page - 1) * pageSize);
 

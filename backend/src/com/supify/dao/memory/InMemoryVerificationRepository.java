@@ -19,11 +19,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
-/**
- * In-memory thread-safe implementation of VerificationRepository.
- * Folds the entire 4-layer verification spine (Claim -> Evidence -> Check -> Attestation)
- * under a single ReentrantReadWriteLock to guarantee ACID atomic operations.
- */
+/** Thread-safe in-memory store keeping 4-layer spine mutations atomic under ReentrantReadWriteLock. */
 public class InMemoryVerificationRepository implements VerificationRepository {
     private final Map<UUID, Claim> claims = new ConcurrentHashMap<>();
     private final Map<UUID, Evidence> evidenceMap = new ConcurrentHashMap<>();

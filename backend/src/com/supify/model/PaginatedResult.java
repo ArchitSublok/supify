@@ -5,10 +5,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * Generic container for paginated query results.
- * Demonstrates Generics, type safety, and wildcards.
- */
+/** Generic page slice wrapper supporting type-safe functional mapping. */
 public class PaginatedResult<T> {
     private final List<T> items;
     private final int totalCount;
@@ -42,9 +39,6 @@ public class PaginatedResult<T> {
         return (int) Math.ceil((double) totalCount / pageSize);
     }
 
-    /**
-     * Demonstrates generic method and function transformation with bounded wildcard.
-     */
     public <R> PaginatedResult<R> map(Function<? super T, ? extends R> mapper) {
         List<R> mappedItems = items.stream()
                 .map(mapper)

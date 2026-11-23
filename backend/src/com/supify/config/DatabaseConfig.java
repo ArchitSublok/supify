@@ -4,12 +4,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-/**
- * Demonstrates:
- * - Relational/SQL concepts required for JDBC
- * - JDBC architecture, drivers, URL, DriverManager, and Connection management
- * - Graceful connection checking with fallback
- */
+/** JDBC connection configuration and connectivity check for MySQL. */
 public class DatabaseConfig {
     private static final String DEFAULT_DRIVER = "com.mysql.cj.jdbc.Driver";
     private static final String DEFAULT_URL = "jdbc:mysql://localhost:3306/supify?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";

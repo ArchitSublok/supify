@@ -19,14 +19,7 @@ import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-/**
- * Demonstrates:
- * - JDBC and Database Programming with MySQL
- * - PreparedStatement parameter binding and secure SQL
- * - CRUD operations: Create, Read, Update, Delete
- * - ResultSet processing with cursor iteration (rs.next()), typed getters, and Java-object mapping
- * - Exception-safe resource management via try-with-resources
- */
+/** MySQL JDBC implementation of SupplierRepository using PreparedStatement and ResultSet mapping. */
 public class JdbcSupplierDao implements SupplierRepository {
 
     @Override
@@ -38,7 +31,6 @@ public class JdbcSupplierDao implements SupplierRepository {
         try (Connection conn = DatabaseConfig.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            // Parameter binding (Secure SQL preventing injection)
             ps.setString(1, org.getId().toString());
             ps.setString(2, org.getLegalName());
             ps.setString(3, org.getTradeName());
@@ -74,7 +66,6 @@ public class JdbcSupplierDao implements SupplierRepository {
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    // Cursor iteration & typed getters mapping to Java object
                     Organisation org = mapRowToOrganisation(rs);
                     return Optional.of(org);
                 }

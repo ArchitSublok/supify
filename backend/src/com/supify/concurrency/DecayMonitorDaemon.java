@@ -12,13 +12,7 @@ import com.supify.model.enums.TrustBand;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Background daemon thread demonstrating:
- * - Thread subclassing, start(), run(), sleep(), join(), and interrupt()
- * - Daemon thread configuration (setDaemon(true)) and custom priority
- * - Periodic background attestation validity decay monitoring
- * - Non-intrusive alert posting via AlertBuffer
- */
+/** Background daemon that expires aged attestations and posts non-blocking alerts. */
 public class DecayMonitorDaemon extends Thread {
     private final VerificationRepository verificationRepo;
     private final SupplierRepository supplierRepo;

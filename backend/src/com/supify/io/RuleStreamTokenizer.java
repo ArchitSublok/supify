@@ -7,12 +7,7 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Demonstrates:
- * - StreamTokenizer usage with character streams
- * - Token classification: TT_WORD, TT_NUMBER, TT_EOF, TT_EOL
- * - Custom character syntax configuration (wordChars, ordinaryChars)
- */
+/** Tokenizes verification rule expressions using java.io.StreamTokenizer. */
 public class RuleStreamTokenizer {
 
     public record Token(int type, String sval, double nval) {

@@ -6,10 +6,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * Immutable verification event. Platform-authored.
- * Once written, this record cannot be modified.
- */
+/** Immutable verification event authored by the platform or an accredited verifier. */
 public final class VerificationCheck implements Identifiable<UUID> {
     private final UUID id;
     private final UUID claimId;

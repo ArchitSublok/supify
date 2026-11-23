@@ -4,11 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-/**
- * Thread-safe alert buffer decoupling background daemon threads from the CLI console.
- * Uses ConcurrentLinkedQueue to prevent background threads from printing directly
- * to System.out mid-prompt and corrupting user interactive input.
- */
+/** Thread-safe alert buffer keeping daemon logs separate from active CLI prompts. */
 public final class AlertBuffer {
     private static final AlertBuffer INSTANCE = new AlertBuffer();
     private final ConcurrentLinkedQueue<String> buffer = new ConcurrentLinkedQueue<>();

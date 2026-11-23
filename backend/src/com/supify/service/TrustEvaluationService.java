@@ -17,12 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * Evaluates supplier trust scores and bands based on active attestations.
- * Adheres to domain Axioms:
- * - Never a boolean flag
- * - Capping rules: lack of foundational claims caps the maximum attainable band
- */
+/** Recomputes supplier pillar scores and applies trust band capping rules from active attestations. */
 public class TrustEvaluationService {
     private final SupplierRepository supplierRepo;
     private final VerificationRepository verificationRepo;

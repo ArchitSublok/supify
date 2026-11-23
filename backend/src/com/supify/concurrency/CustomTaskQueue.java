@@ -3,13 +3,7 @@ package com.supify.concurrency;
 import java.util.LinkedList;
 import java.util.Queue;
 
-/**
- * Custom bounded thread-safe task queue demonstrating:
- * - Shared data and synchronization
- * - Intrinsic locks and critical sections (synchronized)
- * - Inter-thread communication via guarded blocks: wait() and notifyAll()
- * - Producer-Consumer coordination pattern
- */
+/** Bounded blocking queue implemented with synchronized wait() / notifyAll() guards. */
 public class CustomTaskQueue<T> {
     private final Queue<T> queue = new LinkedList<>();
     private final int capacity;
@@ -22,44 +16,29 @@ public class CustomTaskQueue<T> {
         this.capacity = capacity;
     }
 
-    /**
-     * Producer method: puts an item into the queue.
-     * If the queue is full, the calling thread enters WAITING state via wait().
-     */
     public synchronized void produce(T item) throws InterruptedException {
         while (queue.size() == capacity && active) {
-            // Guarded block: release lock and wait until consumer removes an item
             wait();
         }
         if (!active) {
             return;
         }
         queue.offer(item);
-        // Wake up waiting consumers
         notifyAll();
     }
 
-    /**
-     * Consumer method: takes an item from the queue.
-     * If the queue is empty, the calling thread enters WAITING state via wait().
-     */
     public synchronized T consume() throws InterruptedException {
         while (queue.isEmpty() && active) {
-            // Guarded block: release lock and wait until producer inserts an item
             wait();
         }
         if (queue.isEmpty() && !active) {
             return null;
         }
         T item = queue.poll();
-        // Wake up waiting producers
         notifyAll();
         return item;
     }
 
-    /**
-     * Non-blocking poll attempt with timeout simulation.
-     */
     public synchronized T pollWithTimeout(long timeoutMillis) throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMillis;
         while (queue.isEmpty() && active) {

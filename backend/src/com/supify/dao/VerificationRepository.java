@@ -11,12 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.PriorityBlockingQueue;
 
-/**
- * Unified repository managing the 4-layer verification spine:
- * Claim -> Evidence -> VerificationCheck -> Attestation,
- * plus operational VerificationTask queue.
- * Keeps spine mutations atomic under ReentrantReadWriteLock.
- */
+/** Repository contract for the 4-layer verification spine and task queue. */
 public interface VerificationRepository {
     // Claims
     Claim saveClaim(Claim claim);

@@ -6,10 +6,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/**
- * Operational task drives the verifier review queue.
- * Implements Comparable for priority-based ordering in heap/PriorityBlockingQueue.
- */
+/** Verifier review queue item ordered by descending priority, then earliest SLA due time. */
 public class VerificationTask extends AbstractAuditEntity implements Comparable<VerificationTask> {
     private final UUID claimId;
     private final UUID organisationId;
