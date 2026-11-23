@@ -2,7 +2,7 @@
 
 **A supplier discovery platform where every "verified" badge shows its work.**
 
-Supify is a frontend for a supplier discovery and verification marketplace. Buyers search for suppliers, open a profile, and see not just *whether* a supplier is trusted but **how each claim was checked, when, by what method, and until when it stays valid**.
+Supify is a supplier discovery and evidence-backed verification marketplace. Buyers search for suppliers, open a profile, and see not just *whether* a supplier is trusted but **how each claim was checked, when, by what method, and until when it stays valid**.
 
 It exists because of one problem: a buyer cannot cheaply tell whether a supplier is what it claims to be. So most platforms show green ticks. Supify shows the evidence instead.
 
@@ -10,7 +10,9 @@ It exists because of one problem: a buyer cannot cheaply tell whether a supplier
 
 ## What is built right now
 
-This repository contains a working React application (no backend yet — data comes from JSON fixtures served over HTTP, see [How it works](#how-it-works)).
+1. **React Frontend (`src/`)** — interactive SPA powered by Vite, React, React Router, Tailwind CSS, and Zustand using HTTP fixtures in `public/data/*.json` ([Frontend architecture](docs/architecture.md)).
+2. **Java Backend & Concurrency CLI (`backend/`)** — modular, zero-dependency Java application modeling the 4-layer verification spine (`Claim -> Evidence -> VerificationCheck -> Attestation`), background SLA/decay daemons, Stream API search, file I/O streams, and JDBC stubs ([Backend architecture & UML](docs/backend-architecture.md)).
+3. **MySQL Database Scaffold (`db/`)** — directory structure (`schema/`, `migrations/`, `seeds/`, `procedures/`) queued for upcoming JDBC wiring after CLI polish.
 
 | You can... | Where |
 | --- | --- |
@@ -34,10 +36,8 @@ The workspace uses Context with `useReducer`, custom autosave hooks, and a small
 Zustand checklist store. It includes loading/error/retry states, draft recovery,
 evidence selection, and a local demo submission receipt.
 
-Run `npm test` for focused Vitest/React Testing Library checks. The
-[React workspace guide](docs/react-workspace.md) maps each requested concept to
-its implementation and explains the demo response controls. Uploads and
-submissions remain local simulations; the portfolio is a private draft preview.
+Run `npm test` for focused Vitest/React Testing Library checks. Uploads and
+submissions in the frontend remain local simulations; the portfolio is a private draft preview.
 
 ```bash
 npm install
@@ -45,6 +45,18 @@ npm run dev
 ```
 
 Open http://localhost:5173. Build for production with `npm run build`.
+
+### Backend CLI (Java)
+
+The pure-Java backend CLI (`backend/src/com/supify/`) runs interactively with zero external JARs using the bundled in-memory repositories and seed fixtures:
+
+- **Launch interactive CLI (`backend\run.bat`):** Compiles into `backend\bin\` and runs `com.supify.app.Main` with four switchable personas (**Buyer Discovery Console**, **Supplier Workspace**, **Verifier Station**, and **System/Concurrency/I/O Monitor**).
+- **Run automated verification suite (`backend\test.bat`):** Executes `com.supify.test.SupifyTestRunner` across seed fixtures, Stream API search, 4-layer spine decisions, `CustomTaskQueue` (`wait()`/`notifyAll()`), `PriorityBlockingQueue` escalation, CSV/binary streams, `StreamTokenizer`, custom exceptions, and `GenericRepository`.
+
+```bat
+cd backend
+run.bat
+```
 
 ## A two-minute tour
 
@@ -72,7 +84,8 @@ features/                   discovery · profile · comparison · onboarding · 
 app/                        routing, role context, protected routes, 404
 ```
 
-**Stack:** Vite · React (JavaScript) · React Router 6 · Tailwind CSS · Zustand. No backend yet.
+**Frontend Stack:** Vite · React (JavaScript) · React Router 6 · Tailwind CSS · Zustand (HTTP JSON fixtures).  
+**Backend Stack:** Java 17+ (`backend/src/com/supify/`) · Multithreading & Daemons · Stream API · File I/O · Checked Exceptions · JDBC DAO stubs (MySQL wiring next).
 
 Dependencies point downward only. Features never import each other. All shareable state (query, filters, selected claim, comparison set, queue filter) lives in the URL; session state (drafts, shortlist) lives in localStorage.
 
@@ -100,11 +113,16 @@ These come from the design docs and are visible in the running app:
 
 ## Documentation
 
+- [`AGENTS.md`](AGENTS.md) — working rules, invariants, layer structure, and project status
 - [`docs/understanding.md`](docs/understanding.md) — problem framing, design axioms, domain and trust model
 - [`docs/architecture.md`](docs/architecture.md) — frontend architecture: layers, state, contracts
-- [`docs/CLAUDE.md`](docs/CLAUDE.md) — working rules and invariants
+- [`docs/backend-architecture.md`](docs/backend-architecture.md) — backend UML class diagrams, sequence flows, concurrency & I/O architecture
+- [`backend/README.md`](backend/README.md) — Java backend compilation, `.bat` runners, syllabus mapping, and viva Q&A
 - [`docs/contract/supplier-api.md`](docs/contract/supplier-api.md) — the data contract the fixtures satisfy
+- [`db/README.md`](db/README.md) — MySQL database structure roadmap
 
 ## Status
 
-Frontend includes routing, Context/reducer state, a Zustand dashboard, validated forms, and async workspace recovery flows. Database, backend API, authentication, file storage, and the commercial layer (RFQs, quotes) are designed in the docs but deliberately not built yet.
+- **Frontend:** Routing, Context/reducer state, Zustand dashboard, validated forms, and async workspace recovery flows running on fixtures.
+- **Backend CLI:** Pure-Java CLI (`Main`, four role consoles, concurrency daemons, I/O streams, `SupifyTestRunner`, `run.bat`/`test.bat`) implemented in `backend/`.
+- **Next Phase:** CLI comment cleanup & polish, followed by incremental MySQL schema/seeds/procedures in `db/` and live JDBC wiring (`DatabaseConfig` + `JdbcSupplierDao`).
