@@ -1,7 +1,6 @@
 package com.supify.cli;
 
 import com.supify.concurrency.AlertBuffer;
-import com.supify.dao.SupplierRepository;
 import com.supify.dao.VerificationRepository;
 import com.supify.model.Attestation;
 import com.supify.model.Claim;
@@ -24,52 +23,50 @@ public class VerifierMenu {
     private final ConsoleView view;
     private final SessionContext session;
     private final VerificationRepository verificationRepo;
-    private final SupplierRepository supplierRepo;
     private final VerificationService verificationService;
 
-    public VerifierMenu(ConsoleView view, SessionContext session, VerificationRepository verificationRepo, SupplierRepository supplierRepo, VerificationService verificationService) {
+    public VerifierMenu(ConsoleView view, SessionContext session, VerificationRepository verificationRepo, VerificationService verificationService) {
         this.view = view;
         this.session = session;
         this.verificationRepo = verificationRepo;
-        this.supplierRepo = supplierRepo;
         this.verificationService = verificationService;
     }
 
     public void display() {
-        while (true) {
+        while (view.hasNext()) {
             view.printBanner(session);
-            System.out.println(" VERIFIER STATION COMMANDS (Trained Verifier Console):");
-            System.out.println("  [1] View Priority Verification Task Queue (Heap-Ordered by SLA/Priority)");
-            System.out.println("  [2] Inspect Task & Evidence Dossier (4-Layer Spine: Claim -> Evidence)");
-            System.out.println("  [3] Review & Record Attestation Decision (Pass/Fail + Audit Rationale)");
-            System.out.println("  [4] Trigger SLA Escalation Test (Heap Re-Sort / Priority Queue Concurrency)");
-            System.out.println("  [0] Return to Main Menu");
+            System.out.println(" VERIFIER CONSOLE:");
+            System.out.println("  [1] View Pending Queue");
+            System.out.println("  [2] Inspect Task & Evidence");
+            System.out.println("  [3] Approve or Reject Task");
+            System.out.println("  [4] Boost Task Priority (SLA Escalation Demo)");
+            System.out.println("  [0] Back");
             System.out.println();
 
-            int choice = view.promptInt("Select an option", 0);
+            int choice = view.promptInt("Choose an option", 0);
             if (choice == 0) break;
 
             switch (choice) {
                 case 1 -> handleViewQueue();
-                case 2 -> handleInspectDossier();
-                case 3 -> handleReviewDecision();
-                case 4 -> handleSlaEscalationTest();
-                default -> System.out.println("Invalid option.");
+                case 2 -> handleInspectTask();
+                case 3 -> handleDecideTask();
+                case 4 -> handleBoostPriority();
+                default -> view.printWarn("Please enter a valid option (0-4).");
             }
         }
     }
 
     private void handleViewQueue() {
         List<VerificationTask> tasks = verificationRepo.findPendingTasks();
-        System.out.println(ConsoleView.CYAN + ConsoleView.BOLD + "\n=== VERIFICATION REVIEW QUEUE (" + tasks.size() + " Pending Tasks) ===" + ConsoleView.RESET);
+        view.printSection("PENDING VERIFICATION QUEUE (" + tasks.size() + " tasks)");
 
         if (tasks.isEmpty()) {
-            System.out.println("No pending verification tasks currently in queue.");
+            view.printWarn("Queue is empty.");
             view.pressEnterToContinue();
             return;
         }
 
-        List<String> headers = Arrays.asList("#", "Task ID", "Supplier", "Claim Label", "Priority", "State", "Dual?", "SLA Deadline");
+        List<String> headers = Arrays.asList("#", "TASK ID", "SUPPLIER", "CLAIM", "PRIORITY", "STATE", "DUAL?", "SLA LEFT");
         List<List<String>> rows = new ArrayList<>();
 
         for (int i = 0; i < tasks.size(); i++) {
@@ -90,22 +87,21 @@ public class VerifierMenu {
         }
 
         System.out.println(TableFormatter.renderTable(headers, rows));
-        System.out.println(ConsoleView.YELLOW + "Note: Tasks are dynamically heap-ordered in PriorityBlockingQueue by priority score & SLA." + ConsoleView.RESET);
         view.pressEnterToContinue();
     }
 
-    private void handleInspectDossier() {
+    private void handleInspectTask() {
         List<VerificationTask> tasks = verificationRepo.findPendingTasks();
         if (tasks.isEmpty()) {
-            System.out.println("No pending tasks available to inspect.");
+            view.printWarn("No pending tasks to inspect.");
             view.pressEnterToContinue();
             return;
         }
 
-        handleViewQueueSummary(tasks);
-        int idx = view.promptInt("Select Task # to inspect (1 - " + tasks.size() + ")", 1);
+        printQueueList(tasks);
+        int idx = view.promptInt("Task # to inspect (1-" + tasks.size() + ")", 1);
         if (idx < 1 || idx > tasks.size()) {
-            System.out.println("Invalid task index.");
+            view.printWarn("Invalid task number.");
             view.pressEnterToContinue();
             return;
         }
@@ -115,96 +111,79 @@ public class VerifierMenu {
         Optional<Claim> claimOpt = verificationRepo.findClaimById(claimId);
         List<Evidence> evidenceList = verificationRepo.findEvidenceByClaim(claimId);
         List<VerificationCheck> checks = verificationRepo.findChecksByClaim(claimId);
-        Optional<Attestation> attestationOpt = verificationRepo.findActiveAttestationByClaim(claimId);
+        Optional<Attestation> attOpt = verificationRepo.findActiveAttestationByClaim(claimId);
 
-        System.out.println(ConsoleView.CYAN + ConsoleView.BOLD + "\n" + "═".repeat(70) + ConsoleView.RESET);
-        System.out.println(ConsoleView.CYAN + ConsoleView.BOLD + " EVIDENCE & CLAIM DOSSIER :: " + task.getSupplierName() + ConsoleView.RESET);
-        System.out.println(ConsoleView.CYAN + ConsoleView.BOLD + "═".repeat(70) + ConsoleView.RESET);
-
-        System.out.printf("  Task ID:          %s\n", task.getId());
-        System.out.printf("  Priority Score:   %d (State: %s)\n", task.getPriority(), task.getState());
-        System.out.printf("  SLA Due At:       %s (%s)\n", task.getSlaDueAt(), task.getSlaRemainingString());
-        System.out.printf("  Requires Dual:    %s\n", task.isRequiresDual() ? "YES (Four-eyes principle)" : "No");
-        System.out.println();
+        view.printSection("TASK DOSSIER :: " + task.getSupplierName());
+        System.out.printf("  Task ID:       %s%n", task.getId());
+        System.out.printf("  Priority/State:%d (%s)%n", task.getPriority(), task.getState());
+        System.out.printf("  SLA Left:      %s%n", task.getSlaRemainingString());
+        System.out.printf("  Dual Review:   %s%n%n", task.isRequiresDual() ? "Required" : "Single reviewer");
 
         if (claimOpt.isPresent()) {
             Claim c = claimOpt.get();
-            System.out.println(ConsoleView.BOLD + "Layer 1: Claim Assertion" + ConsoleView.RESET);
-            System.out.printf("  - Claim ID:        %s\n", c.getId());
-            System.out.printf("  - Label:           %s\n", c.getLabel());
-            System.out.printf("  - Pillar:          %s\n", c.getPillar().getLabel());
-            System.out.printf("  - Asserted Value:  %s\n", ConsoleView.GREEN + c.getAssertedValue() + ConsoleView.RESET);
-            System.out.printf("  - Status:          %s\n", c.getStatus().getLabel());
-            System.out.println();
+            System.out.println(ConsoleView.BOLD + "1. Claim Assertion" + ConsoleView.RESET);
+            System.out.printf("   Title:   %s (%s)%n", c.getLabel(), c.getPillar().getLabel());
+            System.out.printf("   Value:   %s%s%s%n", ConsoleView.GREEN, c.getAssertedValue(), ConsoleView.RESET);
+            System.out.printf("   Status:  %s%n%n", c.getStatus().getLabel());
         }
 
-        System.out.println(ConsoleView.BOLD + "Layer 2: Submitted Evidence Documents (" + evidenceList.size() + ")" + ConsoleView.RESET);
+        System.out.println(ConsoleView.BOLD + "2. Submitted Evidence (" + evidenceList.size() + ")" + ConsoleView.RESET);
         if (evidenceList.isEmpty()) {
-            System.out.println("  (No direct evidence files linked to this claim)");
+            System.out.println("   (None attached)");
         } else {
             for (Evidence ev : evidenceList) {
-                System.out.printf("  - [%s] %s\n", ev.getKind().name(), ev.getTitle());
-                System.out.printf("    Storage URI:  %s\n", ev.getStorageRef());
-                System.out.printf("    Issued At:    %s | Expires At: %s\n", ev.getIssuedAt(), ev.getExpiresAt());
+                System.out.printf("   - [%s] %s (%s)%n", ev.getKind().name(), ev.getTitle(), ev.getStorageRef());
+                System.out.printf("     Issued: %s | Expires: %s%n", ev.getIssuedAt(), ev.getExpiresAt());
             }
         }
         System.out.println();
 
-        System.out.println(ConsoleView.BOLD + "Layer 3: Verification Checks History (" + checks.size() + ")" + ConsoleView.RESET);
+        System.out.println(ConsoleView.BOLD + "3. Prior Checks (" + checks.size() + ")" + ConsoleView.RESET);
         if (checks.isEmpty()) {
-            System.out.println("  (No verification checks recorded yet)");
+            System.out.println("   (No checks recorded yet)");
         } else {
             for (VerificationCheck chk : checks) {
-                String oColor = chk.getOutcome() == CheckOutcome.PASS ? ConsoleView.GREEN : ConsoleView.RED;
-                System.out.printf("  - Check ID: %s | Method: %s | Outcome: %s%s%s (Confidence: %.0f%%)\n",
-                        chk.getId().toString().substring(0, 8),
-                        chk.getMethod().getLabel(),
-                        oColor, chk.getOutcome().name(), ConsoleView.RESET,
-                        chk.getConfidence() * 100);
-                System.out.printf("    Verifier: %s | Rationale: %s\n", chk.getPerformedBy(), chk.getRationale());
+                System.out.printf("   - %s | %s | By: %s | Note: %s%n",
+                        chk.getMethod().getLabel(), chk.getOutcome().name(), chk.getPerformedBy(), chk.getRationale());
             }
         }
         System.out.println();
 
-        System.out.println(ConsoleView.BOLD + "Layer 4: Current Attestation State" + ConsoleView.RESET);
-        if (attestationOpt.isPresent()) {
-            Attestation att = attestationOpt.get();
-            System.out.printf("  - Attestation ID: %s | State: %s | Valid Until: %s\n",
-                    att.getId().toString().substring(0, 8),
-                    ConsoleView.GREEN + att.getState().name() + ConsoleView.RESET,
-                    att.getValidUntil());
+        System.out.println(ConsoleView.BOLD + "4. Active Attestation" + ConsoleView.RESET);
+        if (attOpt.isPresent()) {
+            Attestation att = attOpt.get();
+            System.out.printf("   State: %s | Valid Until: %s%n", att.getState().name(), att.getValidUntil());
         } else {
-            System.out.println("  - Pending Attestation (Awaiting Verifier Decision)");
+            System.out.println("   None (awaiting verifier decision)");
         }
 
-        System.out.println(ConsoleView.CYAN + ConsoleView.BOLD + "═".repeat(70) + ConsoleView.RESET);
         view.pressEnterToContinue();
     }
 
-    private void handleReviewDecision() {
+    private void handleDecideTask() {
         List<VerificationTask> tasks = verificationRepo.findPendingTasks();
         if (tasks.isEmpty()) {
-            System.out.println("No pending tasks available for decision.");
+            view.printWarn("No pending tasks to decide.");
             view.pressEnterToContinue();
             return;
         }
 
-        handleViewQueueSummary(tasks);
-        int idx = view.promptInt("Select Task # to decide (1 - " + tasks.size() + ")", 1);
+        printQueueList(tasks);
+        int idx = view.promptInt("Task # to decide (1-" + tasks.size() + ")", 1);
         if (idx < 1 || idx > tasks.size()) {
-            System.out.println("Invalid task index.");
+            view.printWarn("Invalid task number.");
             view.pressEnterToContinue();
             return;
         }
 
         VerificationTask task = tasks.get(idx - 1);
-        System.out.println(ConsoleView.YELLOW + ConsoleView.BOLD + "\nDeciding Task: " + task.getClaimLabel() + " for " + task.getSupplierName() + ConsoleView.RESET);
+        view.printSection("RECORD DECISION :: " + task.getClaimLabel() + " (" + task.getSupplierName() + ")");
 
-        System.out.println("\nSelect Verification Method:");
-        System.out.println("  [1] " + VerificationMethod.THIRD_PARTY_API.getLabel() + " (Direct registry API query)");
-        System.out.println("  [2] " + VerificationMethod.DOCUMENT_REVIEW.getLabel() + " (Manual document forensic audit)");
-        System.out.println("  [3] " + VerificationMethod.HUMAN_AUDIT.getLabel() + " (Senior certified auditor review)");
-        System.out.println("  [4] " + VerificationMethod.SITE_VISIT.getLabel() + " (Physical facility inspection)");
+        System.out.println("Verification Method:");
+        System.out.println("  [1] " + VerificationMethod.THIRD_PARTY_API.getLabel());
+        System.out.println("  [2] " + VerificationMethod.DOCUMENT_REVIEW.getLabel());
+        System.out.println("  [3] " + VerificationMethod.HUMAN_AUDIT.getLabel());
+        System.out.println("  [4] " + VerificationMethod.SITE_VISIT.getLabel());
 
         int mChoice = view.promptInt("Method", 1);
         VerificationMethod method = switch (mChoice) {
@@ -214,27 +193,24 @@ public class VerifierMenu {
             default -> VerificationMethod.THIRD_PARTY_API;
         };
 
-        System.out.println("\nSelect Decision Outcome:");
-        System.out.println("  [1] PASS - Attestation Approved (Valid Time-Bounded Evidence)");
-        System.out.println("  [2] FAIL - Assertion Rejected (Insufficient / Invalid Evidence)");
-
+        System.out.println("\nDecision Outcome:");
+        System.out.println("  [1] PASS (Approve and issue attestation)");
+        System.out.println("  [2] FAIL (Reject claim)");
         int oChoice = view.promptInt("Outcome", 1);
         CheckOutcome outcome = (oChoice == 2) ? CheckOutcome.FAIL : CheckOutcome.PASS;
 
-        String rationale = view.promptString("Verifier Audit Rationale (Mandatory justification)");
+        String rationale = view.promptString("Verifier note / rationale (ENTER for default)");
         if (rationale.isBlank()) {
-            rationale = "Verified credentials against authoritative source; all validation criteria satisfied.";
+            rationale = "Checked evidence against registry; criteria satisfied.";
         }
 
         int validityDays = 365;
         if (outcome == CheckOutcome.PASS) {
-            System.out.println("\nEnter Attestation Validity Period (Days):");
-            System.out.println("  (Enter '0' or small duration like '1' to test live decay countdown demo)");
-            validityDays = view.promptInt("Validity duration in days", 365);
+            validityDays = view.promptInt("Attestation valid for (days)", 365);
             if (validityDays < 1) validityDays = 1;
         }
 
-        boolean success = verificationService.processVerifierDecision(
+        boolean ok = verificationService.processVerifierDecision(
                 task.getId(),
                 session.getCurrentUserName(),
                 method,
@@ -243,70 +219,54 @@ public class VerifierMenu {
                 Duration.ofDays(validityDays)
         );
 
-        if (success) {
-            System.out.println(ConsoleView.GREEN + ConsoleView.BOLD + "\n✔ Decision recorded successfully! Task marked DECIDED." + ConsoleView.RESET);
-            System.out.printf("  - Verification Method: %s\n", method.getLabel());
-            System.out.printf("  - Outcome:             %s\n", outcome == CheckOutcome.PASS ? ConsoleView.GREEN + "PASS" + ConsoleView.RESET : ConsoleView.RED + "FAIL" + ConsoleView.RESET);
-            System.out.printf("  - Attestation State:   %s\n", outcome == CheckOutcome.PASS ? "ACTIVE (Valid for " + validityDays + " days)" : "NONE (Claim Rejected)");
-            System.out.println("  - Supplier Trust Score dynamically recomputed across all 4 pillars.");
+        if (ok) {
+            view.printOk("Decision saved (" + outcome.name() + " via " + method.getLabel() + "). Supplier trust score updated.");
         } else {
-            System.out.println(ConsoleView.RED + "Failed to record decision." + ConsoleView.RESET);
+            view.printError("Could not record decision.");
         }
-
         view.pressEnterToContinue();
     }
 
-    private void handleSlaEscalationTest() {
+    private void handleBoostPriority() {
         List<VerificationTask> tasks = verificationRepo.findPendingTasks();
         if (tasks.isEmpty()) {
-            System.out.println("No pending tasks available for escalation test.");
+            view.printWarn("No pending tasks to escalate.");
             view.pressEnterToContinue();
             return;
         }
 
-        handleViewQueueSummary(tasks);
-        int idx = view.promptInt("Select Task # to escalate priority (1 - " + tasks.size() + ")", 1);
+        printQueueList(tasks);
+        int idx = view.promptInt("Task # to escalate (1-" + tasks.size() + ")", 1);
         if (idx < 1 || idx > tasks.size()) {
-            System.out.println("Invalid task index.");
+            view.printWarn("Invalid task number.");
             view.pressEnterToContinue();
             return;
         }
 
         VerificationTask task = tasks.get(idx - 1);
-        int boost = 35;
-
-        // Demonstrate PriorityBlockingQueue heap re-sort:
-        // Must remove, mutate, and re-offer so the priority heap is properly re-balanced!
         var queue = verificationRepo.getTaskPriorityQueue();
-        queue.remove(task);
         int oldPriority = task.getPriority();
-        task.escalate(boost);
+
+        // Remove and re-offer so PriorityBlockingQueue re-balances its heap
+        queue.remove(task);
+        task.escalate(35);
         queue.offer(task);
 
         AlertBuffer.getInstance().postAlert(String.format(
-                "Manual SLA Escalation: Task [%s] for %s priority boosted from %d -> %d. Heap re-sorted in PriorityBlockingQueue.",
+                "SLA escalation: %s (%s) boosted from priority %d to %d.",
                 task.getClaimLabel(), task.getSupplierName(), oldPriority, task.getPriority()
         ));
 
-        System.out.println(ConsoleView.GREEN + ConsoleView.BOLD + "\n✔ Task priority successfully escalated and PriorityBlockingQueue re-heapified!" + ConsoleView.RESET);
-        System.out.printf("  - Task: %s (%s)\n", task.getClaimLabel(), task.getSupplierName());
-        System.out.printf("  - Priority: %d -> %s%d%s\n", oldPriority, ConsoleView.RED + ConsoleView.BOLD, task.getPriority(), ConsoleView.RESET);
-        System.out.printf("  - New State: %s\n", task.getState());
-
+        view.printOk("Priority boosted (" + oldPriority + " -> " + task.getPriority() + ") and heap re-sorted.");
         view.pressEnterToContinue();
     }
 
-    private void handleViewQueueSummary(List<VerificationTask> tasks) {
-        System.out.println(ConsoleView.CYAN + "\nPending Review Queue:" + ConsoleView.RESET);
+    private void printQueueList(List<VerificationTask> tasks) {
+        System.out.println(ConsoleView.CYAN + "\nPending Tasks:" + ConsoleView.RESET);
         for (int i = 0; i < tasks.size(); i++) {
             VerificationTask t = tasks.get(i);
-            System.out.printf("  [%d] %-24s | %-18s | Priority: %3d | State: %s\n",
-                    i + 1,
-                    t.getClaimLabel(),
-                    t.getSupplierName(),
-                    t.getPriority(),
-                    t.getState().name()
-            );
+            System.out.printf("  [%d] %-34s | %-22s | Priority: %3d | %s%n",
+                    i + 1, t.getClaimLabel(), t.getSupplierName(), t.getPriority(), t.getState().name());
         }
         System.out.println();
     }

@@ -9,6 +9,7 @@ import com.supify.model.Evidence;
 import com.supify.model.VerificationCheck;
 import com.supify.model.VerificationTask;
 import com.supify.model.enums.CheckOutcome;
+import com.supify.model.enums.Pillar;
 import com.supify.model.enums.VerificationMethod;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,16 +28,23 @@ public class VerificationService {
         this.auditRepo = Objects.requireNonNull(auditRepo, "auditRepo is required");
     }
 
-    public synchronized Claim submitClaimWithEvidence(UUID organisationId, String supplierName, String key, String label, com.supify.model.enums.Pillar pillar, String assertedValue, Evidence evidence) {
+    public synchronized Claim submitClaimWithEvidence(UUID organisationId, String supplierName, String key, String label, Pillar pillar, String assertedValue, Evidence evidence) {
         Claim claim = new Claim(organisationId, key, label, pillar, assertedValue);
         claim.submit();
         verificationRepo.saveClaim(claim);
 
         if (evidence != null) {
-            verificationRepo.saveEvidence(evidence);
+            Evidence linkedEvidence = new Evidence(
+                    claim.getId(),
+                    evidence.getStorageRef(),
+                    evidence.getKind(),
+                    evidence.getTitle(),
+                    evidence.getIssuedAt(),
+                    evidence.getExpiresAt()
+            );
+            verificationRepo.saveEvidence(linkedEvidence);
         }
 
-        // Generate and enqueue review task in PriorityBlockingQueue
         VerificationTask task = new VerificationTask(
                 claim.getId(),
                 organisationId,
@@ -66,7 +74,6 @@ public class VerificationService {
         VerificationTask task = taskOpt.get();
         UUID claimId = task.getClaimId();
 
-        // 1. Create immutable verification check
         VerificationCheck check = new VerificationCheck(
                 claimId,
                 method,
@@ -76,17 +83,16 @@ public class VerificationService {
                 rationale
         );
 
-        // 2. Create attestation if passed
         Attestation attestation = null;
         if (outcome == CheckOutcome.PASS) {
-            Instant validUntil = validityDuration != null ? Instant.now().plus(validityDuration) : Instant.now().plus(Duration.ofDays(365));
+            Instant validUntil = validityDuration != null
+                    ? Instant.now().plus(validityDuration)
+                    : Instant.now().plus(Duration.ofDays(365));
             attestation = new Attestation(claimId, check.getId(), method, validUntil, verifierName);
         }
 
-        // 3. Atomically execute decision in repository
         verificationRepo.executeVerificationDecision(taskId, check, attestation);
 
-        // 4. Record audit event
         auditRepo.recordEvent(new AuditEvent(
                 "VERIFIER:" + verifierName,
                 "verification.decided",
@@ -95,7 +101,6 @@ public class VerificationService {
                 "Outcome: " + outcome + " via " + method.getLabel() + ". Rationale: " + rationale
         ));
 
-        // 5. Recompute supplier trust score and band
         trustEvaluationService.evaluateSupplier(task.getOrganisationId());
         return true;
     }

@@ -35,35 +35,38 @@ public class SupplierMenu {
     }
 
     public void display() {
-        // Pick primary supplier for demonstration (Aravind Fasteners)
         List<SupplierProfile> profiles = supplierRepo.findAllProfiles();
-        if (profiles.isEmpty()) return;
+        if (profiles.isEmpty()) {
+            view.printWarn("No supplier profile found.");
+            return;
+        }
         SupplierProfile profile = profiles.get(0);
         Organisation org = supplierRepo.findOrganisationById(profile.getOrganisationId()).orElse(null);
+        String orgName = org != null ? org.getLegalName() : "Supplier Portal";
 
-        while (true) {
+        while (view.hasNext()) {
             view.printBanner(session);
-            System.out.println(" SUPPLIER WORKSPACE COMMANDS (" + (org != null ? org.getLegalName() : "Supplier Portal") + "):");
-            System.out.println("  [1] View Onboarding Profile & Standings");
-            System.out.println("  [2] Submit New Claim & Evidence (4-Step Intake Wizard)");
-            System.out.println("  [3] View Active Attestation Decay Countdowns");
-            System.out.println("  [0] Return to Main Menu");
+            System.out.println(" SUPPLIER CONSOLE (" + orgName + "):");
+            System.out.println("  [1] View My Profile & Score");
+            System.out.println("  [2] Submit New Claim (with Evidence)");
+            System.out.println("  [3] Check Attestation Expiry Timers");
+            System.out.println("  [0] Back");
             System.out.println();
 
-            int choice = view.promptInt("Select an option", 0);
+            int choice = view.promptInt("Choose an option", 0);
             if (choice == 0) break;
 
             switch (choice) {
                 case 1 -> handleViewProfile(profile, org);
-                case 2 -> handleWizardClaimSubmit(profile, org);
-                case 3 -> handleViewDecayCountdowns(profile);
-                default -> System.out.println("Invalid option.");
+                case 2 -> handleSubmitClaimWizard(profile, org);
+                case 3 -> handleViewExpiryTimers(profile);
+                default -> view.printWarn("Please enter a valid option (0-3).");
             }
         }
     }
 
     private void handleViewProfile(SupplierProfile profile, Organisation org) {
-        System.out.println(ConsoleView.BOLD + "\n--- SUPPLIER PROFILE SUMMARY ---" + ConsoleView.RESET);
+        view.printSection("MY SUPPLIER PROFILE");
         System.out.println("  Legal Name:    " + (org != null ? org.getLegalName() : "Unknown"));
         System.out.println("  Trade Name:    " + (org != null ? org.getTradeName() : "N/A"));
         System.out.println("  Category:      " + profile.getCategory());
@@ -75,31 +78,26 @@ public class SupplierMenu {
         view.pressEnterToContinue();
     }
 
-    private void handleWizardClaimSubmit(SupplierProfile profile, Organisation org) {
-        System.out.println("\n" + ConsoleView.BOLD + ConsoleView.CYAN + "═".repeat(82) + ConsoleView.RESET);
-        System.out.println(ConsoleView.BOLD + "   SUPPLIER INTAKE WIZARD :: Step-by-Step Claim Assertion" + ConsoleView.RESET);
-        System.out.println(ConsoleView.BOLD + ConsoleView.CYAN + "═".repeat(82) + ConsoleView.RESET);
+    private void handleSubmitClaimWizard(SupplierProfile profile, Organisation org) {
+        view.printSection("SUBMIT NEW CLAIM (4-Step Intake)");
 
-        // Step 1: Select Pillar Standard
-        System.out.println("\n" + ConsoleView.BOLD + "[STEP 1/4] Select Audit Pillar Dimension:" + ConsoleView.RESET);
+        System.out.println(ConsoleView.BOLD + "[Step 1/4] Choose Category Pillar:" + ConsoleView.RESET);
         Pillar[] pillars = Pillar.values();
         for (int i = 0; i < pillars.length; i++) {
-            System.out.printf("  [%d] %s (Weight: %.1fx)\n", i + 1, pillars[i].getLabel(), pillars[i].getDefaultWeight());
+            System.out.printf("  [%d] %s (Weight: %.1fx)%n", i + 1, pillars[i].getLabel(), pillars[i].getDefaultWeight());
         }
-        int pChoice = view.promptInt("Choose pillar number", 4);
+        int pChoice = view.promptInt("Pillar number", 4);
         Pillar chosenPillar = (pChoice >= 1 && pChoice <= pillars.length) ? pillars[pChoice - 1] : Pillar.QUALITY;
 
-        // Step 2: Assert Claim
-        System.out.println("\n" + ConsoleView.BOLD + "[STEP 2/4] Assert Credential / Capability Details:" + ConsoleView.RESET);
-        String label = view.promptString("Claim Title / Certification Name (e.g. IATF 16949 Automotive Quality)");
-        if (label.isEmpty()) label = "ISO 45001 Occupational Health & Safety";
-        String value = view.promptString("Asserted Value / Certificate Identifier (e.g. Reg #OHS-2026-8812)");
-        if (value.isEmpty()) value = "Standard Certified by DNV";
+        System.out.println("\n" + ConsoleView.BOLD + "[Step 2/4] Claim Details:" + ConsoleView.RESET);
+        String label = view.promptString("Claim title (ENTER for 'ISO 45001 Safety Standard')");
+        if (label.isEmpty()) label = "ISO 45001 Safety Standard";
+        String value = view.promptString("Certificate ID or value (ENTER for 'Cert #OHS-2026-8812')");
+        if (value.isEmpty()) value = "Cert #OHS-2026-8812";
 
-        // Step 3: Evidence Document Attachment
-        System.out.println("\n" + ConsoleView.BOLD + "[STEP 3/4] Attach Supporting Evidentiary Artifact:" + ConsoleView.RESET);
-        String docTitle = view.promptString("Document Title (e.g. Audit Certificate PDF)");
-        if (docTitle.isEmpty()) docTitle = label + " Certificate";
+        System.out.println("\n" + ConsoleView.BOLD + "[Step 3/4] Attach Supporting Document:" + ConsoleView.RESET);
+        String docTitle = view.promptString("Document title (ENTER for default)");
+        if (docTitle.isEmpty()) docTitle = label + " Certificate.pdf";
         String refUri = "storage://proofs/" + System.currentTimeMillis() + ".pdf";
 
         Evidence evidence = new Evidence(
@@ -111,16 +109,15 @@ public class SupplierMenu {
                 Instant.now().plus(Duration.ofDays(365))
         );
 
-        // Step 4: Confirmation & Submission
-        System.out.println("\n" + ConsoleView.BOLD + "[STEP 4/4] Review & Enqueue into Verifier Task Queue:" + ConsoleView.RESET);
-        System.out.println("  Pillar:       " + chosenPillar.getLabel());
-        System.out.println("  Claim:        " + label);
-        System.out.println("  Value:        " + value);
-        System.out.println("  Evidence:     " + docTitle + " (" + refUri + ")");
+        System.out.println("\n" + ConsoleView.BOLD + "[Step 4/4] Confirm Submission:" + ConsoleView.RESET);
+        System.out.println("  Pillar:   " + chosenPillar.getLabel());
+        System.out.println("  Claim:    " + label);
+        System.out.println("  Value:    " + value);
+        System.out.println("  Evidence: " + docTitle + " (" + refUri + ")");
 
-        String confirm = view.promptString("Submit claim to Verifier Queue? (Y/N)");
+        String confirm = view.promptString("Send to verifier queue? (Y/N)");
         if ("y".equalsIgnoreCase(confirm) || "yes".equalsIgnoreCase(confirm)) {
-            Claim submittedClaim = verificationService.submitClaimWithEvidence(
+            verificationService.submitClaimWithEvidence(
                     profile.getOrganisationId(),
                     org != null ? org.getLegalName() : "Aravind Fasteners",
                     label.toLowerCase().replace(" ", "_"),
@@ -129,19 +126,18 @@ public class SupplierMenu {
                     value,
                     evidence
             );
-            System.out.println(ConsoleView.GREEN + ConsoleView.BOLD + "\n✓ Claim submitted successfully!" + ConsoleView.RESET);
-            System.out.println("Task has been prioritized and enqueued into PriorityBlockingQueue for verifier review.");
+            view.printOk("Claim submitted and queued for verifier review.");
         } else {
-            System.out.println(ConsoleView.YELLOW + "Claim submission cancelled." + ConsoleView.RESET);
+            view.printWarn("Claim submission cancelled.");
         }
         view.pressEnterToContinue();
     }
 
-    private void handleViewDecayCountdowns(SupplierProfile profile) {
+    private void handleViewExpiryTimers(SupplierProfile profile) {
         List<Claim> claims = verificationRepo.findClaimsByOrganisation(profile.getOrganisationId());
-        System.out.println(ConsoleView.BOLD + "\n--- ACTIVE ATTESTATION DECAY STATUS ---" + ConsoleView.RESET);
+        view.printSection("ACTIVE ATTESTATION EXPIRY TIMERS");
 
-        List<String> headers = Arrays.asList("CLAIM", "PILLAR", "METHOD", "VERIFIED AT", "VALID UNTIL", "DECAY TIMEOUT / REMAINING");
+        List<String> headers = Arrays.asList("CLAIM", "PILLAR", "METHOD", "VERIFIED ON", "EXPIRES AT", "TIME LEFT");
         List<List<String>> rows = new ArrayList<>();
 
         for (Claim c : claims) {
@@ -153,14 +149,14 @@ public class SupplierMenu {
                         c.getPillar().name(),
                         a.getMethodAchieved().getLabel(),
                         a.getVerifiedAt().toString().substring(0, 10),
-                        a.getValidUntil() != null ? a.getValidUntil().toString().substring(0, 19).replace('T', ' ') : "Indefinite",
+                        a.getValidUntil() != null ? a.getValidUntil().toString().substring(0, 19).replace('T', ' ') : "No expiry",
                         a.getDecayCountdownString()
                 ));
             }
         }
 
         if (rows.isEmpty()) {
-            System.out.println(ConsoleView.YELLOW + "No active attestations found for this profile." + ConsoleView.RESET);
+            view.printWarn("No active attestations found.");
         } else {
             System.out.println(TableFormatter.renderTable(headers, rows));
         }

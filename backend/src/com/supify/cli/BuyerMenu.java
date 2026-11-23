@@ -10,7 +10,6 @@ import com.supify.model.PaginatedResult;
 import com.supify.model.SupplierProfile;
 import com.supify.model.TrustSnapshot;
 import com.supify.model.enums.Pillar;
-import com.supify.model.enums.TrustBand;
 import com.supify.service.SupplierSearchService;
 import com.supify.service.SupplierSearchService.SupplierSearchResult;
 import com.supify.util.TableFormatter;
@@ -36,63 +35,65 @@ public class BuyerMenu {
     }
 
     public void display() {
-        while (true) {
+        while (view.hasNext()) {
             view.printBanner(session);
-            System.out.println(" BUYER CONSOLE COMMANDS:");
-            System.out.println("  [1] Search Supplier Catalog (Multi-faceted filter & sorting)");
-            System.out.println("  [2] View Supplier Dossier & Verifiable Claims Ledger");
-            System.out.println("  [3] Add / Remove Supplier from Comparison Tray");
-            System.out.println("  [4] Render Side-by-Side Comparison Matrix (" + session.getComparisonTray().size() + "/4 selected)");
-            System.out.println("  [0] Return to Main Menu");
+            System.out.println(" BUYER CONSOLE:");
+            System.out.println("  [1] List All Suppliers");
+            System.out.println("  [2] Search & Filter Suppliers");
+            System.out.println("  [3] View Supplier Profile & Claims");
+            System.out.println("  [4] Add / Remove from Compare (" + session.getComparisonTray().size() + "/4)");
+            System.out.println("  [5] Compare Selected Suppliers");
+            System.out.println("  [0] Back");
             System.out.println();
 
-            int choice = view.promptInt("Select an option", 0);
+            int choice = view.promptInt("Choose an option", 0);
             if (choice == 0) break;
 
             switch (choice) {
-                case 1 -> handleSearch();
-                case 2 -> handleViewDossier();
-                case 3 -> handleToggleCompare();
-                case 4 -> handleRenderCompareMatrix();
-                default -> System.out.println("Invalid option.");
+                case 1 -> handleListAll();
+                case 2 -> handleSearch();
+                case 3 -> handleViewProfile();
+                case 4 -> handleToggleCompare();
+                case 5 -> handleCompareMatrix();
+                default -> view.printWarn("Please enter a valid option (0-5).");
             }
         }
     }
 
+    private void handleListAll() {
+        view.printSection("ALL REGISTERED SUPPLIERS (Ranked by Trust Score)");
+        PaginatedResult<SupplierSearchResult> result = searchService.search("", "", null, null, "score", false, 1, 20);
+        renderSupplierTable(result);
+        view.pressEnterToContinue();
+    }
+
     private void handleSearch() {
-        System.out.println(ConsoleView.BOLD + "\n--- MULTI-FACETED SUPPLIER DISCOVERY ---" + ConsoleView.RESET);
-        String keyword = view.promptString("Keyword (e.g. Fasteners, Sheet Metal, Aero, PCB, or press ENTER for all)");
-        String category = view.promptString("Category filter (or press ENTER for all)");
+        view.printSection("SEARCH & FILTER SUPPLIERS");
+        String keyword = view.promptString("Keyword (e.g. Fasteners, Sheet Metal, PCB, or ENTER for all)");
+        String category = view.promptString("Category filter (or ENTER for all)");
         String sort = view.promptString("Sort by [name, score, capacity, moq] (default: score)");
         if (sort.isEmpty()) sort = "score";
 
-        PaginatedResult<SupplierSearchResult> result = searchService.search(
-                keyword,
-                category,
-                null,
-                null,
-                sort,
-                false,
-                1,
-                20
-        );
+        PaginatedResult<SupplierSearchResult> result = searchService.search(keyword, category, null, null, sort, false, 1, 20);
+        renderSupplierTable(result);
+        view.pressEnterToContinue();
+    }
 
+    private void renderSupplierTable(PaginatedResult<SupplierSearchResult> result) {
         if (result.getItems().isEmpty()) {
-            System.out.println(ConsoleView.YELLOW + "No suppliers matched your criteria." + ConsoleView.RESET);
-            view.pressEnterToContinue();
+            view.printWarn("No suppliers matched your criteria.");
             return;
         }
 
-        List<String> headers = Arrays.asList("#", "LEGAL NAME", "CATEGORY", "LOCATION", "CAPACITY", "MOQ", "LEAD TIME", "TRUST BAND", "SCORE");
+        List<String> headers = Arrays.asList("#", "SUPPLIER", "CATEGORY", "LOCATION", "CAPACITY", "MOQ", "LEAD TIME", "TRUST BAND", "SCORE");
         List<List<String>> rows = new ArrayList<>();
         int idx = 1;
 
         for (SupplierSearchResult r : result.getItems()) {
-            boolean inTray = session.isInComparison(r.organisationId());
-            String nameCol = (inTray ? "★ " : "  ") + r.legalName();
+            String prefix = session.isInComparison(r.organisationId()) ? "* " : "  ";
             rows.add(Arrays.asList(
                     String.valueOf(idx++),
-                    nameCol,
+                    prefix + r.legalName(),
                     r.category(),
                     r.location(),
                     r.getCapacityString(),
@@ -104,71 +105,76 @@ public class BuyerMenu {
         }
 
         System.out.println(TableFormatter.renderTable(headers, rows));
-        System.out.println(ConsoleView.CYAN + "Total Matches: " + result.getTotalCount() + " | (★ indicates supplier in Comparison Tray)" + ConsoleView.RESET);
-        view.pressEnterToContinue();
+        System.out.println(ConsoleView.CYAN + "Matches: " + result.getTotalCount() + "  (* = in compare tray)" + ConsoleView.RESET);
     }
 
-    private void handleViewDossier() {
+    private void handleViewProfile() {
         List<SupplierProfile> profiles = supplierRepo.findAllProfiles();
-        if (profiles.isEmpty()) return;
-
-        System.out.println(ConsoleView.BOLD + "\nSELECT SUPPLIER FOR AUDIT DOSSIER:" + ConsoleView.RESET);
-        for (int i = 0; i < profiles.size(); i++) {
-            SupplierProfile p = profiles.get(i);
-            Optional<Organisation> org = supplierRepo.findOrganisationById(p.getOrganisationId());
-            System.out.printf("  [%d] %s (%s) — %s\n", i + 1, org.map(Organisation::getLegalName).orElse("Unknown"), p.getCategory(), p.getTrustBand().toFormattedString());
+        if (profiles.isEmpty()) {
+            view.printWarn("No suppliers available.");
+            view.pressEnterToContinue();
+            return;
         }
 
-        int choice = view.promptInt("Select supplier number", 1);
-        if (choice < 1 || choice > profiles.size()) return;
+        System.out.println(ConsoleView.BOLD + "\nSelect a supplier to inspect:" + ConsoleView.RESET);
+        for (int i = 0; i < profiles.size(); i++) {
+            SupplierProfile p = profiles.get(i);
+            String name = supplierRepo.findOrganisationById(p.getOrganisationId())
+                    .map(Organisation::getLegalName)
+                    .orElse("Unknown");
+            System.out.printf("  [%d] %s (%s) - %s%n", i + 1, name, p.getCategory(), p.getTrustBand().toFormattedString());
+        }
+
+        int choice = view.promptInt("Supplier number", 1);
+        if (choice < 1 || choice > profiles.size()) {
+            view.printWarn("Selection out of range.");
+            view.pressEnterToContinue();
+            return;
+        }
 
         SupplierProfile profile = profiles.get(choice - 1);
         Organisation org = supplierRepo.findOrganisationById(profile.getOrganisationId()).orElse(null);
         Optional<TrustSnapshot> snapshotOpt = supplierRepo.findSnapshotByOrganisationId(profile.getOrganisationId());
 
-        System.out.println("\n" + ConsoleView.BOLD + ConsoleView.CYAN + "═".repeat(82) + ConsoleView.RESET);
-        System.out.println(ConsoleView.BOLD + "   SUPPLIER AUDIT DOSSIER :: " + (org != null ? org.getLegalName() : "Unknown") + ConsoleView.RESET);
-        System.out.println(ConsoleView.BOLD + ConsoleView.CYAN + "═".repeat(82) + ConsoleView.RESET);
-        System.out.println("  Trade Name:       " + (org != null ? org.getTradeName() : "N/A"));
-        System.out.println("  Entity Type:      " + (org != null ? org.getEntityType() : "N/A") + " (Est. " + (org != null ? org.getYearEstablished() : "N/A") + ")");
-        System.out.println("  Registered City:  " + (org != null ? org.getLocation() : "N/A"));
-        System.out.println("  Category:         " + profile.getCategory());
-        System.out.println("  Operational Cap:  " + profile.getCapacityDisplay());
-        System.out.println("  Min Order Qty:    " + String.format("%,d", profile.getMinimumOrderQuantity()) + " | Lead Time: " + profile.getLeadTime());
-        System.out.println("  Trust Band:       " + profile.getTrustBand().toFormattedString() + " | Trust Score: " + String.format("%.3f", profile.getOverallTrustScore()));
+        view.printSection("SUPPLIER PROFILE :: " + (org != null ? org.getLegalName() : "Unknown"));
+        System.out.println("  Trade Name:    " + (org != null ? org.getTradeName() : "N/A"));
+        System.out.println("  Entity Type:   " + (org != null ? org.getEntityType() : "N/A") + " (Est. " + (org != null ? org.getYearEstablished() : "N/A") + ")");
+        System.out.println("  Location:      " + (org != null ? org.getLocation() : "N/A"));
+        System.out.println("  Category:      " + profile.getCategory());
+        System.out.println("  Capacity:      " + profile.getCapacityDisplay());
+        System.out.println("  MOQ / Lead:    " + String.format("%,d", profile.getMinimumOrderQuantity()) + " units | " + profile.getLeadTime());
+        System.out.println("  Trust Standing:" + " " + profile.getTrustBand().toFormattedString() + " (" + String.format("%.3f", profile.getOverallTrustScore()) + ")");
 
-        // Render Multi-pillar breakdown
         if (snapshotOpt.isPresent()) {
-            System.out.println("\n" + ConsoleView.BOLD + "  TRUST PILLAR RADAR SCORES:" + ConsoleView.RESET);
-            TrustSnapshot s = snapshotOpt.get();
+            System.out.println("\n" + ConsoleView.BOLD + "  PILLAR COVERAGE:" + ConsoleView.RESET);
+            TrustSnapshot snap = snapshotOpt.get();
             for (Pillar p : Pillar.values()) {
-                double score = s.getPillarScore(p);
-                String bar = "█".repeat((int) (score * 15)) + "░".repeat(15 - (int) (score * 15));
-                System.out.printf("    %-24s [%s] %3.0f%%\n", p.getLabel(), bar, score * 100);
+                double score = snap.getPillarScore(p);
+                int filled = Math.max(0, Math.min(15, (int) (score * 15)));
+                String bar = "#".repeat(filled) + ".".repeat(15 - filled);
+                System.out.printf("    %-26s [%s] %3.0f%%%n", p.getLabel(), bar, score * 100);
             }
         }
 
-        // Render 4-Layer Claims Ledger (Claim -> Method -> Attestation -> Decay)
         List<Claim> claims = verificationRepo.findClaimsByOrganisation(profile.getOrganisationId());
-        System.out.println("\n" + ConsoleView.BOLD + "  VERIFIABLE EVIDENCE LEDGER (Axiom A1-A5 Compliant):" + ConsoleView.RESET);
+        System.out.println("\n" + ConsoleView.BOLD + "  CLAIMS & EVIDENCE LEDGER (" + claims.size() + " claims):" + ConsoleView.RESET);
 
-        List<String> claimHeaders = Arrays.asList("PILLAR", "ASSERTED CLAIM", "VALUE", "METHOD ACHIEVED", "STATUS / DECAY TIMER", "EVIDENCE");
+        List<String> claimHeaders = Arrays.asList("PILLAR", "CLAIM", "VALUE", "METHOD", "STATUS / EXPIRY", "EVIDENCE");
         List<List<String>> claimRows = new ArrayList<>();
-
         for (Claim c : claims) {
             Optional<Attestation> attOpt = verificationRepo.findActiveAttestationByClaim(c.getId());
-            List<Evidence> evidenceList = verificationRepo.findEvidenceByClaim(c.getId());
-            String methodStr = attOpt.map(a -> a.getMethodAchieved().getLabel()).orElse("Pending Review");
-            String decayStr = attOpt.map(Attestation::getDecayCountdownString).orElse(c.getStatus().getLabel());
-            String evidenceStr = evidenceList.isEmpty() ? "None" : evidenceList.get(0).getTitle();
+            List<Evidence> evList = verificationRepo.findEvidenceByClaim(c.getId());
+            String method = attOpt.map(a -> a.getMethodAchieved().getLabel()).orElse("Pending Review");
+            String statusOrExpiry = attOpt.map(Attestation::getDecayCountdownString).orElse(c.getStatus().getLabel());
+            String evidence = evList.isEmpty() ? "None" : evList.get(0).getTitle();
 
             claimRows.add(Arrays.asList(
                     c.getPillar().name(),
                     c.getLabel(),
                     c.getAssertedValue(),
-                    methodStr,
-                    decayStr,
-                    evidenceStr
+                    method,
+                    statusOrExpiry,
+                    evidence
             ));
         }
 
@@ -178,95 +184,77 @@ public class BuyerMenu {
 
     private void handleToggleCompare() {
         List<SupplierProfile> profiles = supplierRepo.findAllProfiles();
-        System.out.println(ConsoleView.BOLD + "\nADD / REMOVE VENDOR FROM COMPARISON TRAY:" + ConsoleView.RESET);
+        System.out.println(ConsoleView.BOLD + "\nTOGGLE SUPPLIER IN COMPARE TRAY (Max 4):" + ConsoleView.RESET);
         for (int i = 0; i < profiles.size(); i++) {
             SupplierProfile p = profiles.get(i);
-            Organisation org = supplierRepo.findOrganisationById(p.getOrganisationId()).orElse(null);
+            String name = supplierRepo.findOrganisationById(p.getOrganisationId())
+                    .map(Organisation::getLegalName)
+                    .orElse("Unknown");
             boolean inTray = session.isInComparison(p.getOrganisationId());
-            System.out.printf("  [%d] [%s] %s (%s)\n",
-                    i + 1,
-                    inTray ? "SELECTED" : "        ",
-                    org != null ? org.getLegalName() : "Unknown",
-                    p.getCategory());
+            System.out.printf("  [%d] [%s] %s (%s)%n", i + 1, inTray ? "X" : " ", name, p.getCategory());
         }
 
-        int choice = view.promptInt("Select supplier number to toggle (0 to cancel)", 0);
+        int choice = view.promptInt("Supplier number to toggle (0 to cancel)", 0);
         if (choice < 1 || choice > profiles.size()) return;
 
         SupplierProfile selected = profiles.get(choice - 1);
         if (session.isInComparison(selected.getOrganisationId())) {
             session.removeFromComparison(selected.getOrganisationId());
-            System.out.println(ConsoleView.GREEN + "Removed from comparison tray." + ConsoleView.RESET);
+            view.printOk("Removed supplier from compare tray.");
+        } else if (session.addToComparison(selected.getOrganisationId())) {
+            view.printOk("Added supplier to compare tray (" + session.getComparisonTray().size() + "/4).");
         } else {
-            boolean added = session.addToComparison(selected.getOrganisationId());
-            if (!added) {
-                System.out.println(ConsoleView.RED + "Comparison tray is full (maximum 4 suppliers allowed)." + ConsoleView.RESET);
-            } else {
-                System.out.println(ConsoleView.GREEN + "Added to comparison tray!" + ConsoleView.RESET);
-            }
+            view.printError("Compare tray is full (max 4 suppliers).");
         }
     }
 
-    private void handleRenderCompareMatrix() {
+    private void handleCompareMatrix() {
         if (session.getComparisonTray().isEmpty()) {
-            System.out.println(ConsoleView.YELLOW + "\nComparison tray is empty. Add 2 to 4 suppliers first via Option [3]!" + ConsoleView.RESET);
+            view.printWarn("Compare tray is empty. Select 2 to 4 suppliers first via Option [4].");
             view.pressEnterToContinue();
             return;
         }
 
-        List<SupplierProfile> comparedProfiles = new ArrayList<>();
-        List<Organisation> comparedOrgs = new ArrayList<>();
-
+        List<SupplierProfile> profiles = new ArrayList<>();
+        List<Organisation> orgs = new ArrayList<>();
         for (UUID orgId : session.getComparisonTray()) {
-            supplierRepo.findProfileByOrganisationId(orgId).ifPresent(comparedProfiles::add);
-            supplierRepo.findOrganisationById(orgId).ifPresent(comparedOrgs::add);
+            supplierRepo.findProfileByOrganisationId(orgId).ifPresent(profiles::add);
+            supplierRepo.findOrganisationById(orgId).ifPresent(orgs::add);
         }
 
-        System.out.println("\n" + ConsoleView.BOLD + ConsoleView.CYAN + "═".repeat(82) + ConsoleView.RESET);
-        System.out.println(ConsoleView.BOLD + "   SIDE-BY-SIDE SUPPLIER COMPARISON MATRIX" + ConsoleView.RESET);
-        System.out.println(ConsoleView.BOLD + ConsoleView.CYAN + "═".repeat(82) + ConsoleView.RESET);
+        view.printSection("SIDE-BY-SIDE SUPPLIER COMPARISON (" + orgs.size() + " Selected)");
 
         List<String> headers = new ArrayList<>();
-        headers.add("METRIC / ATTRIBUTE");
-        for (Organisation o : comparedOrgs) {
-            headers.add(o.getLegalName());
-        }
+        headers.add("ATTRIBUTE");
+        for (Organisation o : orgs) headers.add(o.getLegalName());
 
         List<List<String>> rows = new ArrayList<>();
-
-        // Category
-        List<String> catRow = new ArrayList<>(List.of("Primary Category"));
-        for (SupplierProfile p : comparedProfiles) catRow.add(p.getCategory());
-        rows.add(catRow);
-
-        // Location
-        List<String> locRow = new ArrayList<>(List.of("Manufacturing Hub"));
-        for (Organisation o : comparedOrgs) locRow.add(o.getLocation());
-        rows.add(locRow);
-
-        // Capacity
+        List<String> catRow = new ArrayList<>(List.of("Category"));
+        List<String> locRow = new ArrayList<>(List.of("Location"));
         List<String> capRow = new ArrayList<>(List.of("Monthly Capacity"));
-        for (SupplierProfile p : comparedProfiles) capRow.add(p.getCapacityDisplay());
-        rows.add(capRow);
-
-        // MOQ
         List<String> moqRow = new ArrayList<>(List.of("Minimum Order Qty"));
-        for (SupplierProfile p : comparedProfiles) moqRow.add(String.format("%,d", p.getMinimumOrderQuantity()));
-        rows.add(moqRow);
-
-        // Lead Time
-        List<String> leadRow = new ArrayList<>(List.of("Standard Lead Time"));
-        for (SupplierProfile p : comparedProfiles) leadRow.add(p.getLeadTime());
-        rows.add(leadRow);
-
-        // Trust Band
+        List<String> leadRow = new ArrayList<>(List.of("Lead Time"));
         List<String> bandRow = new ArrayList<>(List.of("Trust Standing"));
-        for (SupplierProfile p : comparedProfiles) bandRow.add(p.getTrustBand().toFormattedString());
-        rows.add(bandRow);
+        List<String> scoreRow = new ArrayList<>(List.of("Trust Score"));
 
-        // Trust Score
-        List<String> scoreRow = new ArrayList<>(List.of("Audit Score (0-1)"));
-        for (SupplierProfile p : comparedProfiles) scoreRow.add(String.format("%.3f", p.getOverallTrustScore()));
+        for (int i = 0; i < profiles.size(); i++) {
+            SupplierProfile p = profiles.get(i);
+            Organisation o = orgs.get(i);
+            catRow.add(p.getCategory());
+            locRow.add(o.getLocation());
+            capRow.add(p.getCapacityDisplay());
+            moqRow.add(String.format("%,d", p.getMinimumOrderQuantity()));
+            leadRow.add(p.getLeadTime());
+            bandRow.add(p.getTrustBand().toFormattedString());
+            scoreRow.add(String.format("%.3f", p.getOverallTrustScore()));
+        }
+
+        rows.add(catRow);
+        rows.add(locRow);
+        rows.add(capRow);
+        rows.add(moqRow);
+        rows.add(leadRow);
+        rows.add(bandRow);
         rows.add(scoreRow);
 
         System.out.println(TableFormatter.renderTable(headers, rows));
