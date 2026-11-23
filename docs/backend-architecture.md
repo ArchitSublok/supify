@@ -1,30 +1,31 @@
 # Supify — Java Backend Architecture, UML Class Diagrams & Flowcharts
 
-Comprehensive technical reference for the pure-Java backend under `backend/src/com/supify/`.  
-For problem framing and domain axioms, see [`understanding.md`](understanding.md); for compilation and CLI usage, see [`backend/README.md`](../backend/README.md).
+Technical architecture reference for the 56-file pure-Java backend under `backend/src/com/supify/`.  
+See [`setup.md`](setup.md) to run locally, [`understanding.md`](understanding.md) for domain axioms, [`database-architecture.md`](database-architecture.md) for the MySQL 8.0 ER diagram, and [`backend/README.md`](../backend/README.md) for syllabus mapping.
 
 ---
 
 ## 1. System Overview & Layered Package Architecture
 
-The backend isolates interactive terminal I/O (`cli`), business logic (`service`), data persistence (`dao`), and concurrency workers (`concurrency`) behind repository interfaces (`SupplierRepository`, `VerificationRepository`, `AuditRepository`). Dependencies flow downward so `InMemory*` repositories and `JdbcSupplierDao` are interchangeable without changing `service` or `cli`.
+The backend isolates interactive terminal I/O (`cli`), business logic (`service`), data persistence (`dao`), and concurrency workers (`concurrency`) behind repository interfaces (`SupplierRepository`, `VerificationRepository`, `AuditRepository`). Because services depend only on interfaces, `InMemory*` repositories and `JdbcSupplierDao` are interchangeable without modifying `service` or `cli`.
 
 ```mermaid
 flowchart TD
-    APP["app (Main Entry Point)"] --> CLI["cli (BuyerMenu, SupplierMenu, VerifierMenu, SystemMenu)"]
+    APP["app (Main)"] --> CLI["cli (BuyerMenu, SupplierMenu, VerifierMenu, SystemMenu, DemoRunner)"]
     APP --> CONC["concurrency (DecayMonitorDaemon, SlaEscalationDaemon)"]
     CLI --> SVC["service (SupplierSearchService, TrustEvaluationService, VerificationService)"]
     CLI --> CONC
     CLI --> IO["io (CsvDataExporterImporter, AuditByteStreamHandler, RuleStreamTokenizer)"]
     CLI --> UTIL["util (TableFormatter, SeedDataFactory)"]
 
-    SVC --> DAO["dao (Interfaces: SupplierRepository, VerificationRepository, AuditRepository, GenericRepository)"]
+    SVC --> DAO["dao (SupplierRepository, VerificationRepository, AuditRepository, GenericRepository)"]
     CONC --> DAO
     UTIL --> DAO
 
     MEM["dao.memory (InMemorySupplierRepository, InMemoryVerificationRepository, InMemoryAuditRepository)"] --> DAO
     JDBC["dao.jdbc (JdbcSupplierDao)"] --> DAO
     JDBC --> CFG["config (DatabaseConfig)"]
+    CLI --> CFG
 
     CLI --> EXC["exception (SupplierNotFoundException, VerificationException, InvalidDataException)"]
     SVC --> MODEL["model (Entities & Enums)"]
@@ -36,6 +37,7 @@ flowchart TD
     TEST --> IO
     TEST --> MEM
     TEST --> EXC
+    TEST --> DAO
 ```
 
 ### Package Inventory (`backend/src/com/supify/`)
@@ -43,22 +45,22 @@ flowchart TD
 | Package | Role | Key Classes |
 | :--- | :--- | :--- |
 | `app` | Application bootstrap & graceful shutdown | `Main` |
-| `cli` | Interactive ANSI consoles & role session state | `ConsoleView`, `SessionContext`, `BuyerMenu`, `SupplierMenu`, `VerifierMenu`, `SystemMenu` |
-| `service` | Domain pipelines & trust scoring | `SupplierSearchService`, `TrustEvaluationService`, `VerificationService` |
-| `dao` | Repository contracts & implementations | `GenericRepository`, `SupplierRepository`, `VerificationRepository`, `AuditRepository`, `InMemory*`, `JdbcSupplierDao` |
-| `model` | 4-layer verification spine entities & enums | `Organisation`, `SupplierProfile`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation`, `VerificationTask`, `TrustSnapshot`, `AuditEvent`, `PaginatedResult` |
+| `cli` | Pure-ASCII role consoles, session state & demo runner | `ConsoleView`, `SessionContext`, `BuyerMenu`, `SupplierMenu`, `VerifierMenu`, `SystemMenu`, `DemoRunner` |
+| `service` | Stream search, trust scoring & verification orchestration | `SupplierSearchService`, `TrustEvaluationService`, `VerificationService` |
+| `dao` | Repository contracts, in-memory stores & MySQL JDBC DAO | `GenericRepository`, `SupplierRepository`, `VerificationRepository`, `AuditRepository`, `InMemory*`, `JdbcSupplierDao` |
+| `model` | 4-layer verification spine entities & 10 domain enums | `Organisation`, `SupplierProfile`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation`, `VerificationTask`, `TrustSnapshot`, `AuditEvent`, `PaginatedResult` |
 | `concurrency` | Background daemons, wait/notify queue & alert bridge | `DecayMonitorDaemon`, `SlaEscalationDaemon`, `CustomTaskQueue`, `AlertBuffer`, `ThreadLifecycleMonitor` |
 | `io` | Character/byte file streams & rule tokenizer | `CsvDataExporterImporter`, `AuditByteStreamHandler`, `RuleStreamTokenizer` |
 | `exception` | Checked domain exception hierarchy | `SupplierNotFoundException`, `VerificationException`, `InvalidDataException` |
-| `config` | JDBC connection configuration | `DatabaseConfig` |
-| `util` | Seed fixtures & terminal table rendering | `SeedDataFactory`, `TableFormatter` |
-| `test` | Zero-dependency automated test runner | `SupifyTestRunner` |
+| `config` | Environment-aware JDBC driver & connection settings | `DatabaseConfig` |
+| `util` | Seed fixtures & ASCII table formatter | `SeedDataFactory`, `TableFormatter` |
+| `test` | Zero-dependency automated test suite (22 assertions) | `SupifyTestRunner` |
 
 ---
 
-## 2. Core Domain Model — UML Class Diagram
+## 2. Core Domain Model & Enums — UML Class Diagram
 
-Supify models verification as a **4-layer evidence spine** (`Claim -> Evidence -> VerificationCheck -> Attestation`) rather than a single boolean flag. Mutable entities extend `AbstractAuditEntity` (which implements `Identifiable~UUID~`), while immutable platform facts (`VerificationCheck`, `AuditEvent`) are `final` value records.
+Supify models verification as a **4-layer evidence spine** (`Claim -> Evidence -> VerificationCheck -> Attestation`) rather than a boolean verification flag. Mutable entities inherit UUID identity and timestamps from `AbstractAuditEntity`, while audit records (`VerificationCheck`, `AuditEvent`) are immutable `final` classes.
 
 ```mermaid
 classDiagram
@@ -75,7 +77,7 @@ classDiagram
         +getId() UUID
         +getCreatedAt() Instant
         +getUpdatedAt() Instant
-        #touch() void
+        +touch() void
     }
 
     class Organisation {
@@ -198,6 +200,94 @@ classDiagram
         +map(Function mapper) PaginatedResult
     }
 
+    class Pillar {
+        <<enumeration>>
+        IDENTITY
+        LEGAL
+        FINANCIAL
+        QUALITY
+        CAPABILITY
+        COMPLIANCE
+        REPUTATION
+    }
+
+    class TrustBand {
+        <<enumeration>>
+        UNVERIFIED
+        BASIC
+        VERIFIED
+        AUDITED
+    }
+
+    class VerificationMethod {
+        <<enumeration>>
+        SELF_DECLARED
+        DOCUMENT_REVIEW
+        THIRD_PARTY_API
+        HUMAN_AUDIT
+        SITE_VISIT
+    }
+
+    class ClaimStatus {
+        <<enumeration>>
+        DRAFT
+        SUBMITTED
+        IN_REVIEW
+        VERIFIED
+        REJECTED
+        EXPIRED
+        REVOKED
+    }
+
+    class CheckOutcome {
+        <<enumeration>>
+        PASS
+        FAIL
+        INCONCLUSIVE
+        NEEDS_MORE_INFO
+    }
+
+    class AttestationState {
+        <<enumeration>>
+        ACTIVE
+        EXPIRED
+        REVOKED
+        SUPERSEDED
+    }
+
+    class TaskState {
+        <<enumeration>>
+        QUEUED
+        CLAIMED
+        DECIDED
+        ESCALATED
+    }
+
+    class EvidenceKind {
+        <<enumeration>>
+        PDF
+        IMAGE
+        API_TRANSCRIPT
+        SITE_REPORT
+    }
+
+    class ListingState {
+        <<enumeration>>
+        DRAFT
+        PENDING_REVIEW
+        LISTED
+        SUSPENDED
+        DELISTED
+    }
+
+    class UserRole {
+        <<enumeration>>
+        BUYER
+        SUPPLIER
+        VERIFIER
+        ADMIN
+    }
+
     Identifiable <|.. AbstractAuditEntity
     Identifiable <|.. VerificationCheck
     Identifiable <|.. TrustSnapshot
@@ -218,13 +308,24 @@ classDiagram
     Claim "1" --> "0..*" Attestation : yields
     VerificationCheck "1" --> "0..1" Attestation : justifies
     Claim "1" --> "0..*" VerificationTask : schedules review
+
+    SupplierProfile --> ListingState
+    SupplierProfile --> TrustBand
+    Claim --> Pillar
+    Claim --> ClaimStatus
+    Evidence --> EvidenceKind
+    VerificationCheck --> VerificationMethod
+    VerificationCheck --> CheckOutcome
+    Attestation --> VerificationMethod
+    Attestation --> AttestationState
+    VerificationTask --> TaskState
 ```
 
 ---
 
-## 3. Services, Repositories & Exceptions — UML Class Diagram
+## 3. Services, Repositories, JDBC Config & Exceptions — UML Class Diagram
 
-Services depend strictly on repository interfaces (`SupplierRepository`, `VerificationRepository`, `AuditRepository`), isolating the in-memory store from MySQL/JDBC persistence. `GenericRepository~T, ID~` demonstrates type-safe parameterized CRUD with bounded wildcards (`Predicate~? super T~`).
+Services depend strictly on repository interfaces (`SupplierRepository`, `VerificationRepository`, `AuditRepository`). `JdbcSupplierDao` uses `DatabaseConfig` to run parameterized MySQL CRUD queries and `TrustSnapshot` JSON serialization with zero external JSON libraries.
 
 ```mermaid
 classDiagram
@@ -288,18 +389,32 @@ classDiagram
         +saveOrganisation(Organisation org) Organisation
         +findOrganisationById(UUID id) Optional~Organisation~
         +findAllOrganisations() List~Organisation~
+        +deleteOrganisationById(UUID id) boolean
         +saveProfile(SupplierProfile profile) SupplierProfile
         +findProfileByOrganisationId(UUID orgId) Optional~SupplierProfile~
         +findAllProfiles() List~SupplierProfile~
+        +findProfilesMatching(Predicate predicate) List~SupplierProfile~
+        +saveSnapshot(TrustSnapshot snapshot) TrustSnapshot
+        +findSnapshotByOrganisationId(UUID orgId) Optional~TrustSnapshot~
+    }
+
+    class DatabaseConfig {
+        +configure(String dbUrl, String dbUser, String dbPass)$ void
+        +getUrl()$ String
+        +getUser()$ String
+        +getLastError()$ String
+        +isDriverAvailable()$ boolean
+        +getConnection()$ Connection
+        +testConnection()$ boolean
     }
 
     class InMemoryVerificationRepository {
-        -Map claims
-        -Map evidenceMap
-        -Map checks
-        -Map attestations
-        -Map tasks
-        -PriorityBlockingQueue taskPriorityQueue
+        -Map~UUID, Claim~ claims
+        -Map~UUID, Evidence~ evidenceMap
+        -Map~UUID, VerificationCheck~ checks
+        -Map~UUID, Attestation~ attestations
+        -Map~UUID, VerificationTask~ tasks
+        -PriorityBlockingQueue~VerificationTask~ taskPriorityQueue
         -ReentrantReadWriteLock rwLock
     }
 
@@ -338,7 +453,7 @@ classDiagram
     VerificationRepository <|.. InMemoryVerificationRepository
     AuditRepository <|.. InMemoryAuditRepository
 
-    JdbcSupplierDao ..> DatabaseConfig : getsConnection
+    JdbcSupplierDao ..> DatabaseConfig : acquires connections
     SupplierSearchService --> SupplierRepository
     TrustEvaluationService --> SupplierRepository
     TrustEvaluationService --> VerificationRepository
@@ -353,9 +468,139 @@ classDiagram
 
 ---
 
-## 4. Verification Spine & Trust Recomputation Sequence
+## 4. CLI Consoles & Concurrency Workers — UML Class Diagram
 
-The end-to-end verification lifecycle preserves strict separation of concerns: suppliers only assert claims and upload proof; verifiers write immutable checks and time-bounded attestations atomically under `ReentrantReadWriteLock`.
+`Main` wires shared session state (`SessionContext`), ANSI/ASCII terminal I/O (`ConsoleView`), the four role consoles (`BuyerMenu`, `SupplierMenu`, `VerifierMenu`, `SystemMenu`), the repeatable guided walkthrough (`DemoRunner`), and two background daemon threads (`DecayMonitorDaemon`, `SlaEscalationDaemon`).
+
+```mermaid
+classDiagram
+    class Main {
+        +main(String[] args)$ void
+    }
+
+    class ConsoleView {
+        -Scanner scanner
+        +hasNext() boolean
+        +checkAndPrintAlerts() void
+        +printBanner(SessionContext session) void
+        +printSection(String title) void
+        +printOk(String msg) void
+        +printWarn(String msg) void
+        +printError(String msg) void
+        +promptString(String label) String
+        +promptInt(String label, int defaultValue) int
+        +pressEnterToContinue() void
+    }
+
+    class SessionContext {
+        -UserRole currentRole
+        -String currentUserName
+        -Set~UUID~ comparisonTray
+        +getCurrentRole() UserRole
+        +setCurrentRole(UserRole role) void
+        +addToComparison(UUID supplierId) boolean
+        +removeFromComparison(UUID supplierId) boolean
+    }
+
+    class BuyerMenu {
+        +display() void
+    }
+
+    class SupplierMenu {
+        +display() void
+    }
+
+    class VerifierMenu {
+        +display() void
+    }
+
+    class SystemMenu {
+        +display() void
+    }
+
+    class DemoRunner {
+        +runGuidedDemo() void
+    }
+
+    class Thread {
+        <<JDK>>
+    }
+
+    class DecayMonitorDaemon {
+        -long pollIntervalMillis
+        -volatile boolean running
+        +run() void
+        +stopMonitoring() void
+    }
+
+    class SlaEscalationDaemon {
+        -long pollIntervalMillis
+        -volatile boolean running
+        +run() void
+        +stopDaemon() void
+    }
+
+    class CustomTaskQueue~T~ {
+        -Queue~T~ queue
+        -int capacity
+        -boolean active
+        +produce(T item) void
+        +consume() T
+        +pollWithTimeout(long timeoutMillis) T
+        +shutdown() void
+    }
+
+    class AlertBuffer {
+        -AlertBuffer INSTANCE$
+        -ConcurrentLinkedQueue~String~ buffer
+        +getInstance()$ AlertBuffer
+        +post(String alertMessage) void
+        +postAlert(String alertMessage) void
+        +drainAlerts() List~String~
+    }
+
+    class ThreadLifecycleMonitor {
+        +captureSupifyThreads()$ List~ThreadSnapshot~
+        +generateThreadStateReport()$ String
+    }
+
+    Main --> BuyerMenu
+    Main --> SupplierMenu
+    Main --> VerifierMenu
+    Main --> SystemMenu
+    Main --> DemoRunner
+    Main --> DecayMonitorDaemon
+    Main --> SlaEscalationDaemon
+    Main --> SessionContext
+    Main --> ConsoleView
+
+    BuyerMenu --> ConsoleView
+    BuyerMenu --> SessionContext
+    SupplierMenu --> ConsoleView
+    SupplierMenu --> SessionContext
+    VerifierMenu --> ConsoleView
+    VerifierMenu --> SessionContext
+    SystemMenu --> ConsoleView
+    SystemMenu --> SessionContext
+    SystemMenu --> ThreadLifecycleMonitor
+    SystemMenu --> AlertBuffer
+    DemoRunner --> ConsoleView
+    DemoRunner --> AlertBuffer
+    DemoRunner --> ThreadLifecycleMonitor
+
+    Thread <|-- DecayMonitorDaemon
+    Thread <|-- SlaEscalationDaemon
+    DecayMonitorDaemon --> AlertBuffer : posts expiry alerts
+    SlaEscalationDaemon --> AlertBuffer : posts SLA alerts
+    ConsoleView --> AlertBuffer : drains at prompt boundaries
+    SessionContext --> UserRole
+```
+
+---
+
+## 5. Verification Spine & Trust Recomputation Sequence
+
+The end-to-end verification lifecycle preserves strict separation of concerns: `VerificationService.submitClaimWithEvidence` binds uploaded proof to the newly generated `claim.getId()` and enqueues a review task, while verifiers write immutable checks and time-bounded attestations atomically under `ReentrantReadWriteLock`.
 
 ```mermaid
 sequenceDiagram
@@ -366,8 +611,8 @@ sequenceDiagram
     actor Ver as Verifier (VerifierMenu)
     participant TE as TrustEvaluationService
 
-    Sup->>VS: submitClaimWithEvidence(orgId, key, label, pillar, value, evidence)
-    VS->>VR: saveClaim(claim [SUBMITTED]) + saveEvidence(evidence)
+    Sup->>VS: submitClaimWithEvidence(orgId, supplierName, key, label, pillar, value, evidence)
+    VS->>VR: saveClaim(claim [SUBMITTED]) + saveEvidence(evidence linked to claimId)
     VS->>VR: enqueueTask(VerificationTask in PriorityBlockingQueue)
     VS->>AR: recordEvent("claim.submitted")
     VS-->>Sup: Return submitted Claim
@@ -393,7 +638,7 @@ sequenceDiagram
 
 ---
 
-## 5. Concurrency, Background Daemons & Thread Lifecycle
+## 6. Concurrency, Background Daemons & Thread Lifecycle
 
 Background daemons keep trust scores accurate over time without corrupting active terminal prompts.
 
@@ -410,7 +655,7 @@ flowchart LR
 
     AB -->|"drainAlerts() at safe prompt boundary"| CV["ConsoleView (System.out)"]
 
-    PROD["Producer Thread"] -->|"produce() synchronized + notifyAll()"| CTQ["CustomTaskQueue~T~ (wait / notifyAll)"]
+    PROD["Producer Thread"] -->|"produce() synchronized + notifyAll()"| CTQ["CustomTaskQueue (wait / notifyAll)"]
     CTQ -->|"consume() guarded while-loop"| CONS["Consumer Thread"]
 ```
 
@@ -433,33 +678,32 @@ stateDiagram-v2
 
 ---
 
-## 6. File I/O & Stream Pipelines
+## 7. File I/O & Stream Pipelines
 
-`SystemMenu` demonstrates three Java I/O mechanisms writing and validating data under `backend/data/`:
+`SystemMenu` exercises three Java I/O mechanisms writing and validating files under `backend/data/`:
 
 ```mermaid
 flowchart LR
     Profiles["Supplier Profiles + Organisations"] -->|"FileWriter + BufferedWriter"| CSV["data/suppliers_catalog_export.csv"]
-    CSV -->|"FileReader + BufferedReader (CsvDataExporterImporter)"| Records["List~ExportRecord~ (Validated POJOs)"]
+    CSV -->|"FileReader + BufferedReader (CsvDataExporterImporter)"| Records["ExportRecord List (Validated POJOs)"]
 
     Events["Audit Payloads"] -->|"FileOutputStream + DataOutputStream (0x53504659 SPFY header)"| BIN["data/audit_ledger.bin"]
-    BIN -->|"FileInputStream + DataInputStream (AuditByteStreamHandler)"| ValidatedBin["List~BinaryAuditRecord~ (Header-Verified)"]
+    BIN -->|"FileInputStream + DataInputStream (AuditByteStreamHandler)"| ValidatedBin["BinaryAuditRecord List (Header-Verified)"]
 
-    Expr["Rule String (e.g. MIN_CAPACITY >= 50000)"] -->|"StringReader -> StreamTokenizer (RuleStreamTokenizer)"| Tokens["List~Token~ (TT_WORD, TT_NUMBER, CHAR)"]
+    Expr["Rule String (e.g. MIN_CAPACITY >= 50000)"] -->|"StringReader -> StreamTokenizer (RuleStreamTokenizer)"| Tokens["Token List (TT_WORD, TT_NUMBER, CHAR)"]
 ```
 
 ---
 
-## 7. Next Phase: Database (`db/`) & JDBC Transition
+## 8. Database (`db/`) & JDBC Status
 
-The repository layer is already decoupled so migrating from in-memory maps to MySQL 8.0 requires zero changes to `cli/` or `service/`:
+See [`database-architecture.md`](database-architecture.md) for the complete 9-table ER diagram and MySQL data-flow chart.
 
-1. **SQL Scripts (`db/`):**
-   - `db/schema/` — `CREATE TABLE` DDL for the 15 normalized tables (`organisation`, `supplier_profile`, `claim`, `evidence`, `verification_check`, `attestation`, `verification_task`, `trust_snapshot`, `audit_event`, etc.).
-   - `db/seeds/` — Initial seed inserts matching the canonical fixtures.
-   - `db/procedures/` — Stored procedures, views, and triggers for ledger append guarantees and trust rollups.
-   - `db/migrations/` — Incremental `ALTER TABLE` scripts.
-2. **Java JDBC Layer (`backend/src/com/supify/dao/jdbc/` & `config/`):**
-   - Place `mysql-connector-j-*.jar` in `backend/lib/` and include `-cp "bin;lib/*"` in `run.bat` and `test.bat`.
-   - Complete `JdbcSupplierDao` methods (`saveSnapshot`, `findSnapshotByOrganisationId`) and add `JdbcVerificationDao` / `JdbcAuditDao` using parameterized `PreparedStatement` and `ResultSet` cursor mapping via `DatabaseConfig.getConnection()`.
-   - Switch repository instantiation in `com.supify.app.Main` based on `DatabaseConfig.testConnection()`, falling back automatically to `InMemory*` when MySQL is unavailable.
+- **Implemented now:**
+  - `db/schema/01_supify_schema.sql`, `db/seeds/01_canonical_suppliers.sql`, `db/procedures/01_views_and_procedures.sql`, and `db/setup_mysql.bat`.
+  - `DatabaseConfig` supporting `SUPIFY_DB_*` env vars, `-Dsupify.db.*` properties, driver detection (`isDriverAvailable()`), and live connection diagnostics (`SystemMenu` option `[6]`).
+  - Full-CRUD `JdbcSupplierDao` (`organisation`, `supplier_profile`, and `trust_snapshot` persistence via `PreparedStatement` + `ResultSet`).
+  - `backend/run.bat` and `backend/test.bat` wired with `-cp "bin;lib\*"`.
+- **Next increment:**
+  - Add `JdbcVerificationDao` and `JdbcAuditDao` implementing `VerificationRepository` and `AuditRepository`.
+  - Switch repository instantiation in `com.supify.app.Main` based on a `--db` flag or `DatabaseConfig.testConnection()`, falling back cleanly to `InMemory*` when offline.
