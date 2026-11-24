@@ -23,6 +23,7 @@ Read in order. §1–§2 establish first principles; §3–§5 derive the domain
 the application from the domain; §10–§12 bound the work.
 
 **Reading order by role**
+
 | If you are... | Read first |
 | --- | --- |
 | Writing the DB / migrations | §3, §4, §5 |
@@ -1272,8 +1273,8 @@ simpler privacy posture and better data control. Affects §10.4 materially.
 
 **Q6 — Who are the verifiers, in the narrative?**
 Platform employees, or accredited third-party inspection agencies? The latter is more realistic for
-audits and site visits and introduces an interesting multi-party attestation model — `attestation.
-issued_by` would reference an *agency*, and agencies themselves would need trust standing. Richer,
+audits and site visits and introduces an interesting multi-party attestation model — `attestation.issued_by`
+would reference an *agency*, and agencies themselves would need trust standing. Richer,
 and more complex. Currently modelled as platform-internal.
 
 **Q7 — Does verification cost the supplier money?**

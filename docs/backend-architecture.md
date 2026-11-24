@@ -620,10 +620,10 @@ sequenceDiagram
     Ver->>VR: findPendingTasks() [ordered by priority & SLA]
     Ver->>VS: processVerifierDecision(taskId, verifier, method, PASS, rationale, validity)
     VS->>VR: executeVerificationDecision(taskId, immutable Check, Attestation)
-    Note over VR: Acquires writeLock -> records Check, writes ACTIVE Attestation, sets Claim VERIFIED, marks Task DECIDED
+    Note over VR: Acquires writeLock, records Check, writes ACTIVE Attestation, sets Claim VERIFIED, marks Task DECIDED
     VS->>AR: recordEvent("verification.decided")
     VS->>TE: evaluateSupplier(orgId)
-    Note over TE: Computes weighted pillar scores; caps TrustBand if Identity/Legal missing
+    Note over TE: Computes weighted pillar scores and caps TrustBand if Identity/Legal missing
     TE-->>VR: Read active attestations
     TE-->>VS: Return updated TrustSnapshot
 ```
@@ -631,10 +631,10 @@ sequenceDiagram
 ### Trust Evaluation Capping Rules
 
 `TrustEvaluationService` applies strict gating rules before assigning a `TrustBand`:
-1. No active `IDENTITY` attestation $\rightarrow$ capped at **`UNVERIFIED`** (`score <= 0.30`).
-2. `IDENTITY` verified, but no active `LEGAL` attestation $\rightarrow$ capped at **`BASIC`** (`score <= 0.65`).
-3. Both present, plus at least one high-rigor check (`HUMAN_AUDIT` or `SITE_VISIT`) and weighted score $\ge 0.85$ $\rightarrow$ **`AUDITED`**.
-4. Otherwise $\rightarrow$ **`VERIFIED`**.
+1. No active `IDENTITY` attestation → capped at **`UNVERIFIED`** (`score <= 0.30`).
+2. `IDENTITY` verified, but no active `LEGAL` attestation → capped at **`BASIC`** (`score <= 0.65`).
+3. Both present, plus at least one high-rigor check (`HUMAN_AUDIT` or `SITE_VISIT`) and weighted score ≥ 0.85 → **`AUDITED`**.
+4. Otherwise → **`VERIFIED`**.
 
 ---
 
@@ -649,7 +649,7 @@ flowchart LR
     DECAY --> AB["AlertBuffer (ConcurrentLinkedQueue)"]
     DECAY --> AR["AuditRepository (attestation.expired)"]
 
-    SLA["SlaEscalationDaemon (setDaemon=true, 6s sleep)"] -->|scans SLA < 2h| PQ["PriorityBlockingQueue"]
+    SLA["SlaEscalationDaemon (setDaemon=true, 6s sleep)"] -->|"scans SLA < 2h"| PQ["PriorityBlockingQueue"]
     PQ -->|"remove -> escalate(+25) -> offer (re-heapify)"| SLA
     SLA --> AB
 
@@ -663,16 +663,16 @@ flowchart LR
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NEW : "new DecayMonitorDaemon() / Thread()"
-    NEW --> RUNNABLE : "start()"
-    RUNNABLE --> TIMED_WAITING : "Thread.sleep(pollIntervalMillis) / wait(timeout)"
-    TIMED_WAITING --> RUNNABLE : "interval elapsed"
-    RUNNABLE --> WAITING : "CustomTaskQueue.wait() on empty or full"
-    WAITING --> RUNNABLE : "notifyAll()"
-    RUNNABLE --> BLOCKED : "contending on synchronized / intrinsic lock"
-    BLOCKED --> RUNNABLE : "lock acquired"
-    RUNNABLE --> TERMINATED : "stopMonitoring() / interrupt() / run() returns"
-    TIMED_WAITING --> TERMINATED : "InterruptedException -> interrupt() + break"
+    [*] --> NEW : new DecayMonitorDaemon() / Thread()
+    NEW --> RUNNABLE : start()
+    RUNNABLE --> TIMED_WAITING : Thread.sleep(pollIntervalMillis) / wait(timeout)
+    TIMED_WAITING --> RUNNABLE : interval elapsed
+    RUNNABLE --> WAITING : CustomTaskQueue.wait() on empty or full
+    WAITING --> RUNNABLE : notifyAll()
+    RUNNABLE --> BLOCKED : contending on synchronized / intrinsic lock
+    BLOCKED --> RUNNABLE : lock acquired
+    RUNNABLE --> TERMINATED : stopMonitoring() / interrupt() / run() returns
+    TIMED_WAITING --> TERMINATED : InterruptedException -> interrupt() + break
     TERMINATED --> [*]
 ```
 
