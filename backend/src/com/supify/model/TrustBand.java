@@ -1,5 +1,6 @@
 package com.supify.model;
 
+// Trust levels from 0 (unverified) to 3 (audited)
 public enum TrustBand {
     UNVERIFIED(0),
     BASIC(1),

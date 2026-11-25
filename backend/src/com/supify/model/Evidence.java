@@ -1,5 +1,6 @@
 package com.supify.model;
 
+// Layer 2: proof document uploaded for a claim
 public class Evidence {
     private final String id;
     private final String claimId;
