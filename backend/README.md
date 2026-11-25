@@ -1,39 +1,38 @@
 # Supify — Supplier Discovery & Evidence-Backed Verification Backend
 
-> **Pure Java Backend & Concurrency CLI | Modular Multi-Package Architecture**  
-> **Repository Structure:** Flat `src/com/supify/` layout with Windows batch runners (`run.bat`, `test.bat`)  
+> **Simplified Pure-Java Backend & Interactive CLI (20 Source Files)**  
+> **Repository Structure:** Clean package layout under `backend/src/com/supify/` with Windows batch runners (`run.bat`, `test.bat`)  
 > **Architecture & Setup:** See [`docs/backend-architecture.md`](../docs/backend-architecture.md) (UML class diagrams & flowcharts), [`docs/database-architecture.md`](../docs/database-architecture.md) (MySQL ER & JDBC flow), and [`docs/setup.md`](../docs/setup.md) (setup & troubleshooting).
 
 ---
 
-## 1. Problem Statement & Objectives
+## 1. Core Capabilities
 
-A buyer cannot cheaply observe whether a supplier truly possesses the certifications, capacity, and legal standing they claim.
+A buyer cannot cheaply observe whether a supplier truly holds the certifications, capacity, and legal standing they claim.
 
-The **Supify Backend & CLI** is a modular, pure-Java platform engineered for procurement teams, suppliers, and trained verifiers to:
-1. **Discover & Compare Suppliers:** Search and filter suppliers by keyword, category, trust band, and production capacity using Lambda/Stream pipelines, and compare up to 4 vendors side by side.
-2. **Enforce the 4-Layer Verification Spine:** Model claims strictly as `Claim -> Evidence -> VerificationCheck -> Attestation` (never boolean flags) with explicit method, timestamp, validity window, and rationale.
-3. **Run Concurrent Background Monitors:** Continuously expire aged attestations (`DecayMonitorDaemon`) and escalate near-SLA verification tasks in a priority heap (`SlaEscalationDaemon`), delivering non-intrusive alerts through `AlertBuffer`.
-4. **Persist & Parse Data with Java I/O Streams:** Export/import supplier catalogs as CSV (`FileReader`/`FileWriter`/`BufferedReader`/`BufferedWriter`), append binary audit records with magic header validation (`FileInputStream`/`FileOutputStream`), and tokenize rule expressions (`StreamTokenizer`).
-5. **Handle Domain & Input Errors Safely:** Enforce custom checked exceptions (`SupplierNotFoundException`, `VerificationException`, `InvalidDataException`) and EOF-safe console scanning.
+The **Supify Backend & CLI** is a modular, pure-Java platform enabling procurement teams, suppliers, and verifiers to:
+1. **Discover & Compare Suppliers:** Filter by keyword, category, trust band, and capacity using Lambda/Stream pipelines (`SupplierService`), and compare vendors side by side.
+2. **Enforce the 4-Layer Verification Spine:** Model claims strictly as `Claim → Evidence → VerificationCheck → Attestation` (no boolean `isVerified` flag) with immutable verifier checks and time-bounded attestations.
+3. **Run Background Expiry Monitoring:** Continuously scan and expire aged attestations via a daemon thread (`DecayMonitorThread`), surfacing non-intrusive alerts cleanly between CLI prompts alongside a bounded producer–consumer queue (`TaskBuffer`).
+4. **Persist & Parse Data with Java I/O Streams:** Export/import supplier catalogs as CSV (`FileWriter`/`FileReader` + buffered streams), log/read audit events via byte streams (`FileOutputStream`/`FileInputStream`), and parse verification rules with `StreamTokenizer`.
+5. **Connect to MySQL via JDBC:** Load `DatabaseConfig` settings and perform parameterized CRUD via `JdbcSupplierDao` (`PreparedStatement`, `ResultSet`).
 
 ---
 
-## 2. Architecture & Syllabus Rubric Mapping
+## 2. Architecture Concept Mapping
 
-| Syllabus / Rubric Topic | Implementation in Project | Location |
+| Concept | Implementation in Project | Location |
 | :--- | :--- | :--- |
-| **Multithreading & Concurrency** | Background daemons extending `Thread`, `start()`, `run()`, `sleep()`, `join()`, `interrupt()` | `DecayMonitorDaemon.java`, `SlaEscalationDaemon.java` |
-| **Thread Lifecycle & Scheduling** | Live JVM thread inspection (`NEW`, `RUNNABLE`, `BLOCKED`, `WAITING`, `TIMED_WAITING`, `TERMINATED`), daemon flags, priorities | `ThreadLifecycleMonitor.java` |
-| **Synchronization & Locks** | Atomic 4-layer spine updates under `ReentrantReadWriteLock`; `AtomicLong` audit sequencing | `InMemoryVerificationRepository.java`, `AuditEvent.java` |
-| **Inter-Thread Communication** | Guarded blocks using `synchronized`, `wait()`, and `notifyAll()` for producer-consumer coordination; non-blocking `ConcurrentLinkedQueue` alerts | `CustomTaskQueue.java`, `AlertBuffer.java` |
-| **Lambda Expressions & Streams** | Composable `Predicate`, method references (`::`), `filter()`, `map()`, `sorted()`, `distinct()`, `skip()`, `limit()` | `SupplierSearchService.java`, `TrustEvaluationService.java` |
-| **Generics & Type Safety** | Generic repository interfaces, diamond operator `<>`, bounded wildcards (`? super T`, `? extends R`) | `GenericRepository.java`, `SupplierRepository.java`, `PaginatedResult.java` |
-| **Custom Exceptions** | Checked domain exception classes extending `java.lang.Exception` | `SupplierNotFoundException.java`, `VerificationException.java`, `InvalidDataException.java` |
-| **Character Streams & CSV** | `FileReader`, `FileWriter`, `BufferedReader`, `BufferedWriter`, collection CSV round-trip | `CsvDataExporterImporter.java` |
-| **Byte Streams & Binary I/O** | `FileInputStream`, `FileOutputStream`, `DataInputStream`, `DataOutputStream` with `0x53504659` (`SPFY`) header | `AuditByteStreamHandler.java` |
-| **StreamTokenizer** | Token classification (`TT_WORD`, `TT_NUMBER`, operators) for verification rules | `RuleStreamTokenizer.java` |
-| **JDBC Architecture** | `DriverManager`, `Connection`, `SUPIFY_DB_*` config, `PreparedStatement` binding, `ResultSet` cursor mapping & `TrustSnapshot` JSON CRUD | `DatabaseConfig.java`, `JdbcSupplierDao.java` |
+| **Multithreading & Daemons** | Background monitor extending `Thread`, `start()`, `run()`, `sleep()`, `join()`, `interrupt()`, plus `Runnable` lambda shutdown hook | `DecayMonitorThread.java`, `Main.java` |
+| **Thread Lifecycle Inspection** | Live JVM thread state table (`NEW`, `RUNNABLE`, `BLOCKED`, `WAITING`, `TIMED_WAITING`, `TERMINATED`), priority & daemon flags | `DecayMonitorThread.java` |
+| **Synchronization & Visibility** | `synchronized` repository & entity state transitions, `volatile boolean running` shutdown flag | `InMemoryStore.java`, `DecayMonitorThread.java`, `SupplierService.java` |
+| **Inter-Thread Communication** | Guarded `while`-loop blocks using `synchronized`, `wait()`, and `notifyAll()` for producer–consumer coordination | `TaskBuffer.java` |
+| **Lambda Expressions & Streams** | Composable `Predicate`, `Comparator`, method references (`::`), `filter()`, `map()`, `sorted()`, `distinct()`, `skip()`, `limit()` | `SupplierService.java`, `Repository.java` |
+| **Generics & Type Safety** | Generic `Repository<T, ID>`, `TaskBuffer<T>`, diamond operator `<>`, bounded wildcards (`? super T`, `? extends R`) | `Repository.java`, `TaskBuffer.java`, `InMemoryStore.java` |
+| **Custom Checked Exceptions** | Checked exception extending `java.lang.Exception` with message + cause chaining | `SupifyException.java` |
+| **Character Streams & CSV** | `FileReader`, `FileWriter`, `BufferedReader`, `BufferedWriter`, collection CSV export/import & row validation | `CsvSupplierIO.java` |
+| **Byte Streams & `StreamTokenizer`** | `FileInputStream`, `FileOutputStream` byte logging; `StringReader` + `StreamTokenizer` (`TT_WORD`, `TT_NUMBER`, operators) | `AuditFileIO.java` |
+| **JDBC & CRUD Mapping** | `Class.forName`, `DriverManager.getConnection`, `PreparedStatement` binding, `executeQuery`/`executeUpdate`, `ResultSet` mapping | `DatabaseConfig.java`, `JdbcSupplierDao.java` |
 
 ---
 
@@ -45,54 +44,33 @@ backend/
 │   └── com/
 │       └── supify/
 │           ├── app/
-│           │   └── Main.java                     # Interactive CLI launcher, daemons, shutdown hook
-│           ├── cli/
-│           │   ├── BuyerMenu.java                # One-key list, search, dossier viewer, compare tray
-│           │   ├── ConsoleView.java              # Pure-ASCII prompts, helpers & non-blocking alert drain
-│           │   ├── DemoRunner.java               # Repeatable 5-step guided end-to-end walkthrough
-│           │   ├── SessionContext.java           # Active persona role & 4-vendor comparison tray
-│           │   ├── SupplierMenu.java             # Standings, 4-step intake wizard, decay timers
-│           │   ├── SystemMenu.java               # Thread monitor, CSV, byte streams, tokenizer, JDBC status
-│           │   └── VerifierMenu.java             # Priority task queue, dossier inspection, Pass/Fail decisions
-│           ├── concurrency/
-│           │   ├── AlertBuffer.java              # Thread-safe ConcurrentLinkedQueue alert bridge
-│           │   ├── CustomTaskQueue.java          # Bounded wait()/notifyAll() producer-consumer queue
-│           │   ├── DecayMonitorDaemon.java       # Background attestation expiry scanner
-│           │   ├── SlaEscalationDaemon.java      # SLA escalation & PriorityBlockingQueue heap re-sort
-│           │   └── ThreadLifecycleMonitor.java   # JVM thread state & scheduling table reporter
-│           ├── config/
-│           │   └── DatabaseConfig.java           # JDBC driver, URL & connection test utility
-│           ├── dao/
-│           │   ├── AuditRepository.java
-│           │   ├── GenericRepository.java
-│           │   ├── SupplierRepository.java
-│           │   ├── VerificationRepository.java
-│           │   ├── jdbc/
-│           │   │   └── JdbcSupplierDao.java      # PreparedStatement & ResultSet DAO implementation
-│           │   └── memory/
-│           │       ├── InMemoryAuditRepository.java
-│           │       ├── InMemorySupplierRepository.java
-│           │       └── InMemoryVerificationRepository.java
-│           ├── exception/
-│           │   ├── InvalidDataException.java
-│           │   ├── SupplierNotFoundException.java
-│           │   └── VerificationException.java
-│           ├── io/
-│           │   ├── AuditByteStreamHandler.java   # Binary audit record writer/reader with SPFY header
-│           │   ├── CsvDataExporterImporter.java  # Character stream CSV catalog serializer/parser
-│           │   └── RuleStreamTokenizer.java      # StreamTokenizer rule expression parser
+│           │   └── Main.java                     # Interactive CLI consoles, canonical seeds, shutdown hook
 │           ├── model/
-│           │   ├── enums/                        # Pillar, TrustBand, VerificationMethod, ClaimStatus, ...
-│           │   └── ...                           # Organisation, SupplierProfile, Claim, Evidence, Check, Attestation, ...
+│           │   ├── Attestation.java              # Layer 4: Time-bounded ACTIVE / EXPIRED / REVOKED standing
+│           │   ├── Claim.java                    # Layer 1: Supplier assertion keyed by claimTypeKey + pillar
+│           │   ├── Evidence.java                 # Layer 2: Document/report attached to claimId
+│           │   ├── Supplier.java                 # Supplier record, capacity metrics & trust standing
+│           │   ├── TrustBand.java                # UNVERIFIED, BASIC, VERIFIED, AUDITED
+│           │   ├── VerificationCheck.java        # Layer 3: Immutable final verifier record
+│           │   └── VerificationMethod.java       # SELF_DECLARED .. SITE_VISIT rigor weights
+│           ├── dao/
+│           │   ├── DatabaseConfig.java           # Environment/property-aware MySQL JDBC connection utility
+│           │   ├── InMemoryStore.java            # Thread-safe in-memory Repository implementation
+│           │   ├── JdbcSupplierDao.java          # PreparedStatement CRUD DAO against organisation + supplier_profile
+│           │   └── Repository.java               # Generic CRUD interface + wildcard mapList helper
 │           ├── service/
-│           │   ├── SupplierSearchService.java    # Multi-facet lambda/Stream discovery & pagination
-│           │   ├── TrustEvaluationService.java   # Pillar weighting, rigor scoring, band capping
-│           │   └── VerificationService.java      # Intake & atomic Pass/Fail attestation recording
-│           ├── util/
-│           │   ├── SeedDataFactory.java          # 5 canonical fixtures + 35s live expiring attestation
-│           │   └── TableFormatter.java           # Pure-ASCII terminal table renderer (`+---+`)
+│           │   ├── SupplierService.java          # Stream search, sorting, pagination & TrustBand capping rules
+│           │   └── VerificationService.java      # Claim intake & atomic verifier PASS/FAIL workflow
+│           ├── concurrency/
+│           │   ├── DecayMonitorThread.java       # Daemon expiry scanner, buffered alerts & thread state printer
+│           │   └── TaskBuffer.java               # Bounded wait()/notifyAll() producer-consumer queue
+│           ├── io/
+│           │   ├── AuditFileIO.java              # Byte-stream audit log + StreamTokenizer rule parser
+│           │   └── CsvSupplierIO.java            # Character-stream CSV catalog export & import
+│           ├── exception/
+│           │   └── SupifyException.java          # Checked domain exception with cause chaining
 │           └── test/
-│               └── SupifyTestRunner.java         # Automated zero-dependency verification suite (22 checks)
+│               └── SupifyTestRunner.java         # Automated zero-dependency 10-group test suite
 ├── bin/                                          # Compiled bytecode (.class files)
 ├── lib/                                          # External JAR directory (e.g., mysql-connector-j-*.jar)
 ├── run.bat                                       # One-click Windows compile & CLI launcher (-cp "bin;lib\*")
@@ -102,20 +80,7 @@ backend/
 
 ---
 
-## 4. Class Responsibilities
-
-- **`com.supify.app.Main`**: Bootstraps in-memory repositories, populates fixtures via `SeedDataFactory`, launches `DecayMonitorDaemon` and `SlaEscalationDaemon`, wires the 4 role consoles + `DemoRunner`, and handles graceful shutdown.
-- **`com.supify.cli.DemoRunner`**: Runs an isolated, repeatable 5-step walkthrough showcasing Stream discovery, claim + evidence attachment, verifier PASS decision + trust recalculation, `PriorityBlockingQueue` escalation + `AlertBuffer`, `RuleStreamTokenizer`, and active JVM thread count.
-- **`com.supify.dao.memory.InMemoryVerificationRepository`**: Unifies `Claim`, `Evidence`, `VerificationCheck`, `Attestation`, and `VerificationTask` mutations under one `ReentrantReadWriteLock` alongside a `PriorityBlockingQueue`.
-- **`com.supify.dao.jdbc.JdbcSupplierDao` & `DatabaseConfig`**: Reads `SUPIFY_DB_*` / `-Dsupify.db.*` config, detects the MySQL JDBC driver, and performs full-CRUD MySQL persistence across `organisation`, `supplier_profile`, and `trust_snapshot`.
-- **`com.supify.service.SupplierSearchService`**: Combines dynamic `Predicate` filters, method references, stream sorting/pagination, and `PaginatedResult` mapping.
-- **`com.supify.service.TrustEvaluationService`**: Computes weighted multi-pillar scores from active attestations only, enforcing Trust Band caps when foundational identity or legal claims are missing.
-- **`com.supify.exception.*`**: Checked exception hierarchy (`SupplierNotFoundException`, `VerificationException`, `InvalidDataException`) extending `java.lang.Exception`.
-- **`com.supify.test.SupifyTestRunner`**: Automated 10-group (22-assertion) verification runner validating fixtures, Stream search, 4-layer spine decisions, producer-consumer `wait()`/`notifyAll()`, priority heap re-sorting, CSV I/O, binary streams, `StreamTokenizer`, custom exceptions, and `GenericRepository`.
-
----
-
-## 5. Compilation & Execution Guide
+## 4. Compilation & Execution Guide
 
 ### Prerequisites
 - Java Development Kit (JDK 17 or higher) on `PATH`.
@@ -123,7 +88,7 @@ backend/
 ### Option A: One-Click Windows Batch Scripts
 From Windows Explorer or Command Prompt inside `backend\`:
 - Double-click **`run.bat`** (or run `run.bat`) to compile and launch the interactive CLI.
-- Double-click **`test.bat`** (or run `test.bat`) to compile and run the automated test suite.
+- Double-click **`test.bat`** (or run `test.bat`) to compile and run the 10-group test suite (`SupifyTestRunner`).
 
 ### Option B: Running Manually from Command Prompt / PowerShell
 1. Open a terminal inside `backend\`:
@@ -133,7 +98,7 @@ From Windows Explorer or Command Prompt inside `backend\`:
    ```
 2. Compile all source files into `bin\`:
    ```bat
-   javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\test\SupifyTestRunner.java src\com\supify\dao\jdbc\JdbcSupplierDao.java
+   javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\test\SupifyTestRunner.java src\com\supify\dao\JdbcSupplierDao.java
    ```
 3. Launch the interactive CLI application:
    ```bat
@@ -146,22 +111,9 @@ From Windows Explorer or Command Prompt inside `backend\`:
 
 ---
 
-## 6. Sample Scenarios & Evaluation Viva Q&A
+## 5. Key Interactive Flows in the CLI
 
-### Key Demo Scenarios
-1. **5-Step Guided Walkthrough (`Main -> [5]`):** Runs `DemoRunner` end-to-end on isolated fixtures without leaving stray state in your live session.
-2. **One-Key Buyer Supplier List (`Main -> [1] -> [1]`):** Prints all 5 seeded suppliers in pure ASCII sorted by verified trust score (or choose `[2]` to filter by keyword/category).
-3. **Verifier SLA Priority Escalation (`Main -> [3] -> [4]`):** Escalates a pending task in `PriorityBlockingQueue` via remove + mutate + re-offer so the priority heap re-balances immediately.
-4. **35-Second Live Decay Demo (`Main -> [2] -> [3]`):** Observe the seeded short-lived attestation count down and trigger a non-intrusive `DecayMonitorDaemon` alert in `AlertBuffer` on expiration.
-5. **File I/O, Tokenizer & JDBC Status (`Main -> [4]`):** Inspect live JVM thread states, run CSV export/import to `data/`, write/read binary `SPFY` audit packets, tokenize rule expressions, and inspect MySQL driver/connection status (`[6]`).
-
-### Viva Q&A
-
-**Q1: Why does `SlaEscalationDaemon` remove and re-offer a task in `PriorityBlockingQueue` instead of mutating priority in place?**  
-*Answer:* `PriorityBlockingQueue` maintains heap order only during insertion (`offer`) and removal (`poll`/`remove`). Mutating a queued object's `priority` field in place does not trigger sift-up or sift-down, leaving the heap corrupted until the element is removed and re-offered.
-
-**Q2: How do background daemon threads avoid scrambling interactive CLI prompts?**  
-*Answer:* Daemons never write directly to `System.out`. Instead, they push messages into the singleton `AlertBuffer` (`ConcurrentLinkedQueue<String>`), which `ConsoleView` drains only at clean prompt boundaries.
-
-**Q3: Why model verification as a 4-layer spine instead of a `boolean isVerified` flag?**  
-*Answer:* A boolean hides who verified a claim, by what rigor (`DOCUMENT_REVIEW` vs. `SITE_VISIT`), when it was checked, and when it expires. Separating `Claim -> Evidence -> VerificationCheck -> Attestation` makes trust explainable, auditable, and time-bounded.
+1. **Buyer Catalog & Comparison (`Main → [1]`):** List all 5 suppliers ranked by trust score, run multi-filter Stream searches (`[2]`), inspect any supplier's full 4-layer claim lineage (`[3]`), or compare 2 suppliers side by side (`[4]`).
+2. **Supplier Claim Intake & 30s Decay Timer (`Main → [2]`):** View `SUP-1`'s standing (`[1]`), submit a new claim with evidence (`[2]`), or watch active attestation countdowns (`[3]`, including `SUP-1`'s 30-second attestation triggering `DecayMonitorThread` auto-expiration).
+3. **Verifier Decision Queue (`Main → [3]`):** Inspect submitted claims and attached proof (`[1]`) and approve or reject them (`[2]`), immediately recording an immutable `VerificationCheck`, time-bounded `Attestation`, and updated `TrustBand`.
+4. **System & Admin Tools (`Main → [4]`):** Print live JVM thread states (`[1]`), run the `TaskBuffer` worker check (`[2]`), export/import `data/suppliers.csv` (`[3]`), write/read `data/audit.log` (`[4]`), tokenize rule expressions (`[5]`), and inspect MySQL JDBC status (`[6]`).

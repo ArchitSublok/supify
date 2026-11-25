@@ -145,7 +145,7 @@ erDiagram
 
 ```mermaid
 flowchart LR
-    CLI["Main / SystemMenu (Database JDBC Status)"] --> CFG["DatabaseConfig (SUPIFY_DB_* / -Dsupify.db.*)"]
+    CLI["Main (Database Connection Status)"] --> CFG["DatabaseConfig (SUPIFY_DB_* / -Dsupify.db.*)"]
     DAO["JdbcSupplierDao (PreparedStatement + ResultSet)"] --> CFG
     CFG -->|"Class.forName + DriverManager"| DRV["mysql-connector-j (*.jar in backend/lib)"]
 
@@ -165,10 +165,10 @@ flowchart LR
     DB --> DBObjects
 ```
 
-### Active JDBC Capabilities (`backend/src/com/supify/`)
+### Active JDBC Capabilities (`backend/src/com/supify/dao/`)
 
 - **`DatabaseConfig`**: Resolves `-Dsupify.db.*` JVM properties, then `SUPIFY_DB_*` environment variables, then local defaults (`jdbc:mysql://localhost:3306/supify?...`). Exposes `isDriverAvailable()`, `getConnection()`, `testConnection()`, `getUrl()`, `getUser()`, and `getLastError()`.
-- **`JdbcSupplierDao`**: Implements `SupplierRepository` using parameterized `PreparedStatement` queries and `ResultSet` row mappers across `organisation`, `supplier_profile`, and `trust_snapshot`, including pure-Java JSON map serialization for `pillar_scores_json` and `deleteOrganisationById(UUID)`.
+- **`JdbcSupplierDao`**: Implements `Repository<Supplier, String>` using parameterized `PreparedStatement` queries (`executeQuery()` / `executeUpdate()`) and `ResultSet` cursor row mapping (`mapRow`) across `organisation` and `supplier_profile` (`save`, `findById`, `findAll`, `findMatching`, `updateTrust`, `deleteById`, `count`).
 
 ---
 
@@ -189,6 +189,5 @@ Every SQL table and constraint in [`db/`](../db/README.md) enforces the trust ax
 
 ## 4. Planned Next Increment
 
-1. Implement **`JdbcVerificationDao`** (`VerificationRepository`) with atomic SQL transactions (`conn.setAutoCommit(false)`) mirroring `InMemoryVerificationRepository`'s 4-layer write guarantees.
-2. Implement **`JdbcAuditDao`** (`AuditRepository`) backed by `audit_event` (`AUTO_INCREMENT` starting at `1000`).
-3. Wire an optional `--db` mode (or auto-switch when `DatabaseConfig.testConnection()` returns `true`) in `com.supify.app.Main`.
+1. Add a JDBC DAO covering the remaining verification spine tables (`claim`, `evidence`, `verification_check`, `attestation`) with atomic SQL transactions (`conn.setAutoCommit(false)`).
+2. Wire an optional `--db` mode (or auto-switch when `DatabaseConfig.testConnection()` returns `true`) in `com.supify.app.Main`.

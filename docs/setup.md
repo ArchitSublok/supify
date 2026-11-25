@@ -13,12 +13,12 @@ supplier-platform/
 ├── src/                        # React frontend (Vite, React Router 6, Tailwind, Zustand)
 ├── public/data/                # JSON fixtures served over HTTP to the frontend
 ├── backend/
-│   ├── src/com/supify/         # Pure-Java CLI, concurrency daemons, services, DAOs & tests (56 files)
+│   ├── src/com/supify/         # Simplified pure-Java CLI, daemons, services, DAOs & tests (20 files)
 │   ├── lib/                    # Optional external JARs (mysql-connector-j-*.jar, gitignored)
 │   ├── bin/                    # Compiled .class files (gitignored)
 │   ├── run.bat                 # One-click Windows compile & CLI launcher
 │   ├── test.bat                # One-click Windows compile & automated test runner
-│   └── README.md               # Java backend reference & syllabus mapping
+│   └── README.md               # Java backend setup & class reference
 ├── db/
 │   ├── schema/                 # MySQL 8.0 normalized DDL (01_supify_schema.sql)
 │   ├── seeds/                  # Canonical seed fixtures (01_canonical_suppliers.sql)
@@ -69,13 +69,13 @@ npm run build
 
 ## 4. Running the Java Backend CLI (`backend/`)
 
-The backend CLI runs completely standalone with zero external dependencies using thread-safe in-memory repositories populated by `SeedDataFactory`.
+The backend CLI runs completely standalone with zero external dependencies using `InMemoryStore` populated cleanly at startup in `Main.seedSuppliers`.
 
 ### Option A: One-Click Windows Batch Scripts
 
 Inside `backend\`:
 - Double-click **`run.bat`** (or run `.\run.bat`) to compile all sources into `bin\` and launch `com.supify.app.Main`.
-- Double-click **`test.bat`** (or run `.\test.bat`) to compile and run the automated 22-assertion test suite (`com.supify.test.SupifyTestRunner`).
+- Double-click **`test.bat`** (or run `.\test.bat`) to compile and run the automated 10-group test suite (`com.supify.test.SupifyTestRunner`).
 
 ### Option B: Manual Compile & Run Commands
 
@@ -83,7 +83,7 @@ From `backend\`:
 
 ```bat
 if not exist bin mkdir bin
-javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\test\SupifyTestRunner.java src\com\supify\dao\jdbc\JdbcSupplierDao.java
+javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\test\SupifyTestRunner.java src\com\supify\dao\JdbcSupplierDao.java
 java -cp "bin;lib\*" com.supify.app.Main
 ```
 
@@ -96,9 +96,9 @@ java -cp "bin;lib\*" com.supify.test.SupifyTestRunner
 ### Quick 60-Second CLI Demo Path
 
 1. Launch `backend\run.bat`.
-2. **Guided 5-Step Walkthrough:** At the Main Menu, press **`5`** to run `DemoRunner` (runs discovery search, submits a claim + PDF proof, approves it as a verifier, escalates a task in `PriorityBlockingQueue` + posts via `AlertBuffer`, parses a rule via `StreamTokenizer`, and inspects active JVM threads on isolated fixtures).
-3. **One-Key Catalog View:** Return to Main Menu, choose **`[1] Buyer Console`**, then press **`[1] List All Suppliers`** to print the trust-ranked ASCII supplier table immediately.
-4. **Live Expiry & Queue Review:** Explore **`[2] Supplier Console -> [3]`** to watch the 35-second expiring attestation count down, and **`[3] Verifier Console -> [1]`** to see background SLA escalation alerts surfaced cleanly at prompt boundaries.
+2. **Buyer Console (`[1]`):** Choose **`[1] List All Suppliers`** to print all 5 suppliers ranked by trust score, or **`[3]`** on `SUP-1` to inspect the 4-layer Claim → Evidence → VerificationCheck → Attestation chain.
+3. **Supplier & Verifier Flow (`[2]` → `[3]`):** Watch active expiry countdowns under **`[2] → [3]`** (including `SUP-1`'s 30-second attestation decaying via `DecayMonitorThread`), submit a claim with evidence (`[2] → [2]`), and approve it in **`[3] Verifier Console`**.
+4. **System & Admin Tools (`[4]`):** Check active JVM thread states (`[1]`), queue worker coordination (`[2]`), CSV export/import (`[3]`), byte-stream audit log (`[4]`), rule parsing (`[5]`), and MySQL connection status (`[6]`).
 
 ---
 
@@ -136,9 +136,9 @@ set SUPIFY_DB_PASS=your_password
 
 ### Step 4: Verify Driver & Connection Inside the CLI
 
-Launch `backend\run.bat`, open **`[4] System & I/O`**, and select **`[6] Database (JDBC) Status`** to confirm:
-- `Driver Available: YES (com.mysql.cj.jdbc.Driver)`
-- `Live Connection: CONNECTED` (once `setup_mysql.bat` has created `supify` and valid credentials are set).
+Launch `backend\run.bat`, open **`[4] System & Admin`**, and select **`[6] Database Connection Status`** to confirm:
+- `Driver Available: true`
+- `DB Connected: true` (once `setup_mysql.bat` has created `supify` and valid credentials are set).
 
 ---
 

@@ -1,222 +1,73 @@
 # Supify — Java Backend Architecture, UML Class Diagrams & Flowcharts
 
-Technical architecture reference for the 56-file pure-Java backend under `backend/src/com/supify/`.  
-See [`setup.md`](setup.md) to run locally, [`understanding.md`](understanding.md) for domain axioms, [`database-architecture.md`](database-architecture.md) for the MySQL 8.0 ER diagram, and [`backend/README.md`](../backend/README.md) for syllabus mapping.
+Technical architecture reference for the 20-file pure-Java backend under `backend/src/com/supify/`.  
+See [`setup.md`](setup.md) to run locally, [`understanding.md`](understanding.md) for domain axioms, [`database-architecture.md`](database-architecture.md) for the MySQL 8.0 ER diagram, and [`backend/README.md`](../backend/README.md) for setup and execution instructions.
 
 ---
 
 ## 1. System Overview & Layered Package Architecture
 
-The backend isolates interactive terminal I/O (`cli`), business logic (`service`), data persistence (`dao`), and concurrency workers (`concurrency`) behind repository interfaces (`SupplierRepository`, `VerificationRepository`, `AuditRepository`). Because services depend only on interfaces, `InMemory*` repositories and `JdbcSupplierDao` are interchangeable without modifying `service` or `cli`.
+The backend organizes terminal interaction (`app`), business workflows (`service`), data persistence (`dao`), background concurrency (`concurrency`), file I/O (`io`), and domain errors (`exception`) into 8 focused packages. Services and repositories expose clear contracts (`Repository<T, ID>`), allowing `InMemoryStore` and `JdbcSupplierDao` to share the same `Supplier` domain model.
 
 ```mermaid
 flowchart TD
-    APP["app (Main)"] --> CLI["cli (BuyerMenu, SupplierMenu, VerifierMenu, SystemMenu, DemoRunner)"]
-    APP --> CONC["concurrency (DecayMonitorDaemon, SlaEscalationDaemon)"]
-    CLI --> SVC["service (SupplierSearchService, TrustEvaluationService, VerificationService)"]
-    CLI --> CONC
-    CLI --> IO["io (CsvDataExporterImporter, AuditByteStreamHandler, RuleStreamTokenizer)"]
-    CLI --> UTIL["util (TableFormatter, SeedDataFactory)"]
+    APP["app (Main)"] --> SVC["service (SupplierService, VerificationService)"]
+    APP --> DAO["dao (InMemoryStore, Repository, DatabaseConfig)"]
+    APP --> CONC["concurrency (TaskBuffer, DecayMonitorThread)"]
+    APP --> IO["io (CsvSupplierIO, AuditFileIO)"]
+    APP --> EXC["exception (SupifyException)"]
+    APP --> MODEL["model (Entities & Enums)"]
 
-    SVC --> DAO["dao (SupplierRepository, VerificationRepository, AuditRepository, GenericRepository)"]
+    SVC --> DAO
+    SVC --> CONC
+    SVC --> EXC
+    SVC --> MODEL
+
     CONC --> DAO
-    UTIL --> DAO
+    CONC --> SVC
+    CONC --> MODEL
 
-    MEM["dao.memory (InMemorySupplierRepository, InMemoryVerificationRepository, InMemoryAuditRepository)"] --> DAO
-    JDBC["dao.jdbc (JdbcSupplierDao)"] --> DAO
-    JDBC --> CFG["config (DatabaseConfig)"]
-    CLI --> CFG
-
-    CLI --> EXC["exception (SupplierNotFoundException, VerificationException, InvalidDataException)"]
-    SVC --> MODEL["model (Entities & Enums)"]
-    DAO --> MODEL
     IO --> MODEL
+    DAO --> MODEL
 
-    TEST["test (SupifyTestRunner)"] --> SVC
+    TEST["test (SupifyTestRunner)"] --> APP
+    TEST --> SVC
+    TEST --> DAO
     TEST --> CONC
     TEST --> IO
-    TEST --> MEM
     TEST --> EXC
-    TEST --> DAO
+    TEST --> MODEL
 ```
 
 ### Package Inventory (`backend/src/com/supify/`)
 
-| Package | Role | Key Classes |
+| Package | Role | Classes |
 | :--- | :--- | :--- |
-| `app` | Application bootstrap & graceful shutdown | `Main` |
-| `cli` | Pure-ASCII role consoles, session state & demo runner | `ConsoleView`, `SessionContext`, `BuyerMenu`, `SupplierMenu`, `VerifierMenu`, `SystemMenu`, `DemoRunner` |
-| `service` | Stream search, trust scoring & verification orchestration | `SupplierSearchService`, `TrustEvaluationService`, `VerificationService` |
-| `dao` | Repository contracts, in-memory stores & MySQL JDBC DAO | `GenericRepository`, `SupplierRepository`, `VerificationRepository`, `AuditRepository`, `InMemory*`, `JdbcSupplierDao` |
-| `model` | 4-layer verification spine entities & 10 domain enums | `Organisation`, `SupplierProfile`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation`, `VerificationTask`, `TrustSnapshot`, `AuditEvent`, `PaginatedResult` |
-| `concurrency` | Background daemons, wait/notify queue & alert bridge | `DecayMonitorDaemon`, `SlaEscalationDaemon`, `CustomTaskQueue`, `AlertBuffer`, `ThreadLifecycleMonitor` |
-| `io` | Character/byte file streams & rule tokenizer | `CsvDataExporterImporter`, `AuditByteStreamHandler`, `RuleStreamTokenizer` |
-| `exception` | Checked domain exception hierarchy | `SupplierNotFoundException`, `VerificationException`, `InvalidDataException` |
-| `config` | Environment-aware JDBC driver & connection settings | `DatabaseConfig` |
-| `util` | Seed fixtures & ASCII table formatter | `SeedDataFactory`, `TableFormatter` |
-| `test` | Zero-dependency automated test suite (22 assertions) | `SupifyTestRunner` |
+| `app` | Interactive CLI menus (Buyer, Supplier, Verifier, System & Admin), seed data, shutdown hook | `Main` |
+| `model` | 4-layer verification spine entities & enums | `Supplier`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation`, `TrustBand`, `VerificationMethod` |
+| `dao` | Generic repository contract, in-memory store, MySQL JDBC config & CRUD DAO | `Repository`, `InMemoryStore`, `DatabaseConfig`, `JdbcSupplierDao` |
+| `service` | Stream search, trust calculation & capping, claim intake & decision orchestration | `SupplierService`, `VerificationService` |
+| `concurrency` | Wait/notify task queue & background expiry monitor daemon | `TaskBuffer`, `DecayMonitorThread` |
+| `io` | CSV character streams, byte-stream audit log & rule tokenizer | `CsvSupplierIO`, `AuditFileIO` |
+| `exception` | Checked domain exception | `SupifyException` |
+| `test` | Self-contained 10-group verification test suite | `SupifyTestRunner` |
 
 ---
 
-## 2. Core Domain Model & Enums — UML Class Diagram
+## 2. Core Domain Model & 4-Layer Spine — UML Class Diagram
 
-Supify models verification as a **4-layer evidence spine** (`Claim -> Evidence -> VerificationCheck -> Attestation`) rather than a boolean verification flag. Mutable entities inherit UUID identity and timestamps from `AbstractAuditEntity`, while audit records (`VerificationCheck`, `AuditEvent`) are immutable `final` classes.
+Supify models trust as a **4-layer evidence spine** (`Claim → Evidence → VerificationCheck → Attestation`) rather than a single boolean flag. `VerificationCheck` is a `final` immutable record with no setters, while `Attestation` carries explicit `validUntil` bounds that expire automatically over time.
 
 ```mermaid
 classDiagram
-    class Identifiable~ID~ {
-        <<interface>>
-        +getId() ID
-    }
-
-    class AbstractAuditEntity {
-        <<abstract>>
-        -UUID id
-        -Instant createdAt
-        -Instant updatedAt
-        +getId() UUID
-        +getCreatedAt() Instant
-        +getUpdatedAt() Instant
-        +touch() void
-    }
-
-    class Organisation {
-        -String legalName
-        -String tradeName
-        -String entityType
-        -String countryCode
-        -String city
-        -String state
-        -int yearEstablished
-        +getLocation() String
-    }
-
-    class SupplierProfile {
-        -UUID organisationId
-        -String headline
-        -String category
-        -int capacityPerMonth
-        -String capacityUnit
-        -int minimumOrderQuantity
-        -String leadTime
-        -ListingState listingState
-        -TrustBand trustBand
-        -double overallTrustScore
-        +getCapacityDisplay() String
-    }
-
-    class Claim {
-        -UUID organisationId
-        -String claimTypeKey
-        -String label
-        -Pillar pillar
-        -String assertedValue
-        -ClaimStatus status
-        -Instant submittedAt
-        -UUID supersededBy
-        +submit() void
-        +setStatus(ClaimStatus status) void
-        +markSuperseded(UUID newClaimId) void
-    }
-
-    class Evidence {
-        -UUID claimId
-        -String storageRef
-        -EvidenceKind kind
-        -String title
-        -Instant issuedAt
-        -Instant expiresAt
-    }
-
-    class VerificationCheck {
-        <<final>>
-        -UUID id
-        -UUID claimId
-        -VerificationMethod method
-        -CheckOutcome outcome
-        -double confidence
-        -String performedBy
-        -Instant performedAt
-        -String rationale
-    }
-
-    class Attestation {
-        -UUID claimId
-        -UUID sourceCheckId
-        -VerificationMethod methodAchieved
-        -Instant verifiedAt
-        -Instant validUntil
-        -AttestationState state
-        -String revocationReason
-        -String issuedBy
-        +isExpired() boolean
-        +checkAndApplyDecay() boolean
-        +revoke(String reason) void
-        +getDecayCountdownString() String
-    }
-
-    class VerificationTask {
-        -UUID claimId
-        -UUID organisationId
-        -String supplierName
-        -String claimLabel
-        -TaskState state
-        -int priority
-        -boolean requiresDual
-        -Instant slaDueAt
-        +claim(String verifierName) void
-        +decide() void
-        +escalate(int priorityBoost) void
-        +compareTo(VerificationTask other) int
-    }
-
-    class TrustSnapshot {
-        -UUID organisationId
-        -TrustBand band
-        -double overallScore
-        -Map~Pillar, Double~ pillarScores
-        -Instant computedAt
-        +getPillarScore(Pillar pillar) double
-    }
-
-    class AuditEvent {
-        <<final>>
-        -AtomicLong SEQUENCE$
-        -long sequenceNumber
-        -Instant timestamp
-        -String actor
-        -String action
-        -String subjectType
-        -String subjectId
-        -String details
-    }
-
-    class PaginatedResult~T~ {
-        -List~T~ items
-        -int totalCount
-        -int page
-        -int pageSize
-        +getTotalPages() int
-        +map(Function mapper) PaginatedResult
-    }
-
-    class Pillar {
-        <<enumeration>>
-        IDENTITY
-        LEGAL
-        FINANCIAL
-        QUALITY
-        CAPABILITY
-        COMPLIANCE
-        REPUTATION
-    }
-
     class TrustBand {
         <<enumeration>>
         UNVERIFIED
         BASIC
         VERIFIED
         AUDITED
+        -int level
+        +getLevel() int
     }
 
     class VerificationMethod {
@@ -226,180 +77,131 @@ classDiagram
         THIRD_PARTY_API
         HUMAN_AUDIT
         SITE_VISIT
+        -double score
+        +getScore() double
     }
 
-    class ClaimStatus {
-        <<enumeration>>
-        DRAFT
-        SUBMITTED
-        IN_REVIEW
-        VERIFIED
-        REJECTED
-        EXPIRED
-        REVOKED
+    class Supplier {
+        -String id
+        -String name
+        -String city
+        -String category
+        -int capacityPerMonth
+        -int moq
+        -String leadTime
+        -TrustBand trustBand
+        -double trustScore
+        +setTrustBand(TrustBand trustBand) void
+        +setTrustScore(double trustScore) void
+        +toString() String
     }
 
-    class CheckOutcome {
-        <<enumeration>>
-        PASS
-        FAIL
-        INCONCLUSIVE
-        NEEDS_MORE_INFO
+    class Claim {
+        -String id
+        -String supplierId
+        -String claimTypeKey
+        -String label
+        -String pillar
+        -String value
+        -String status
+        +getStatus() String
+        +setStatus(String status) void
+        +toString() String
     }
 
-    class AttestationState {
-        <<enumeration>>
-        ACTIVE
-        EXPIRED
-        REVOKED
-        SUPERSEDED
+    class Evidence {
+        -String id
+        -String claimId
+        -String title
+        -String docType
+        -String filePath
+        +toString() String
     }
 
-    class TaskState {
-        <<enumeration>>
-        QUEUED
-        CLAIMED
-        DECIDED
-        ESCALATED
+    class VerificationCheck {
+        <<final>>
+        -String id
+        -String claimId
+        -VerificationMethod method
+        -String outcome
+        -String verifierName
+        -LocalDateTime checkedAt
+        -String note
+        +toString() String
     }
 
-    class EvidenceKind {
-        <<enumeration>>
-        PDF
-        IMAGE
-        API_TRANSCRIPT
-        SITE_REPORT
+    class Attestation {
+        -String id
+        -String claimId
+        -String checkId
+        -VerificationMethod method
+        -LocalDateTime verifiedAt
+        -LocalDateTime validUntil
+        -String state
+        +isExpired() boolean
+        +expireIfNeeded() boolean
+        +revoke() void
+        +secondsLeft() long
     }
 
-    class ListingState {
-        <<enumeration>>
-        DRAFT
-        PENDING_REVIEW
-        LISTED
-        SUSPENDED
-        DELISTED
-    }
-
-    class UserRole {
-        <<enumeration>>
-        BUYER
-        SUPPLIER
-        VERIFIER
-        ADMIN
-    }
-
-    Identifiable <|.. AbstractAuditEntity
-    Identifiable <|.. VerificationCheck
-    Identifiable <|.. TrustSnapshot
-    Identifiable <|.. AuditEvent
-
-    AbstractAuditEntity <|-- Organisation
-    AbstractAuditEntity <|-- SupplierProfile
-    AbstractAuditEntity <|-- Claim
-    AbstractAuditEntity <|-- Evidence
-    AbstractAuditEntity <|-- Attestation
-    AbstractAuditEntity <|-- VerificationTask
-
-    Organisation "1" --> "1" SupplierProfile : owns profile
-    Organisation "1" --> "0..*" Claim : asserts
-    Organisation "1" --> "0..1" TrustSnapshot : summarized by
+    Supplier "1" --> "0..*" Claim : asserts
     Claim "1" --> "0..*" Evidence : backed by
     Claim "1" --> "0..*" VerificationCheck : evaluated by
     Claim "1" --> "0..*" Attestation : yields
     VerificationCheck "1" --> "0..1" Attestation : justifies
-    Claim "1" --> "0..*" VerificationTask : schedules review
 
-    SupplierProfile --> ListingState
-    SupplierProfile --> TrustBand
-    Claim --> Pillar
-    Claim --> ClaimStatus
-    Evidence --> EvidenceKind
+    Supplier --> TrustBand
     VerificationCheck --> VerificationMethod
-    VerificationCheck --> CheckOutcome
     Attestation --> VerificationMethod
-    Attestation --> AttestationState
-    VerificationTask --> TaskState
 ```
 
 ---
 
-## 3. Services, Repositories, JDBC Config & Exceptions — UML Class Diagram
+## 3. Data Access, Services, Concurrency, I/O & Exceptions — UML Class Diagram
 
-Services depend strictly on repository interfaces (`SupplierRepository`, `VerificationRepository`, `AuditRepository`). `JdbcSupplierDao` uses `DatabaseConfig` to run parameterized MySQL CRUD queries and `TrustSnapshot` JSON serialization with zero external JSON libraries.
+Generic interfaces (`Repository<T, ID>`), storage implementations (`InMemoryStore`, `JdbcSupplierDao`), business services (`SupplierService`, `VerificationService`), concurrency primitives (`TaskBuffer<T>`, `DecayMonitorThread`), file I/O (`CsvSupplierIO`, `AuditFileIO`), and checked exception (`SupifyException`).
 
 ```mermaid
 classDiagram
-    class GenericRepository~T, ID~ {
+    class Repository~T,ID~ {
         <<interface>>
-        +save(T entity) T
+        +save(T item) T
         +findById(ID id) Optional~T~
         +findAll() List~T~
-        +findMatching(Predicate predicate) List~T~
+        +findMatching(Predicate filter) List~T~
         +deleteById(ID id) boolean
         +count() long
+        +mapList(List items, Function mapper)$ List
     }
 
-    class SupplierRepository {
-        <<interface>>
-        +saveOrganisation(Organisation org) Organisation
-        +findOrganisationById(UUID id) Optional~Organisation~
-        +findAllOrganisations() List~Organisation~
-        +saveProfile(SupplierProfile profile) SupplierProfile
-        +findProfileByOrganisationId(UUID orgId) Optional~SupplierProfile~
-        +findAllProfiles() List~SupplierProfile~
-        +findProfilesMatching(Predicate predicate) List~SupplierProfile~
-        +saveSnapshot(TrustSnapshot snapshot) TrustSnapshot
-        +findSnapshotByOrganisationId(UUID orgId) Optional~TrustSnapshot~
-    }
-
-    class VerificationRepository {
-        <<interface>>
-        +saveClaim(Claim claim) Claim
-        +findClaimById(UUID id) Optional~Claim~
-        +findClaimsByOrganisation(UUID orgId) List~Claim~
-        +saveEvidence(Evidence evidence) Evidence
-        +findEvidenceByClaim(UUID claimId) List~Evidence~
-        +recordCheck(VerificationCheck check) VerificationCheck
-        +findChecksByClaim(UUID claimId) List~VerificationCheck~
-        +saveAttestation(Attestation attestation) Attestation
-        +findActiveAttestationByClaim(UUID claimId) Optional~Attestation~
-        +findAttestationsByState(AttestationState state) List~Attestation~
-        +findAllAttestations() List~Attestation~
-        +enqueueTask(VerificationTask task) VerificationTask
-        +findTaskById(UUID taskId) Optional~VerificationTask~
-        +findPendingTasks() List~VerificationTask~
-        +getTaskPriorityQueue() PriorityBlockingQueue~VerificationTask~
-        +executeVerificationDecision(UUID taskId, VerificationCheck check, Attestation attestation) void
-    }
-
-    class AuditRepository {
-        <<interface>>
-        +recordEvent(AuditEvent event) AuditEvent
-        +findRecentEvents(int limit) List~AuditEvent~
-        +count() long
-    }
-
-    class InMemorySupplierRepository {
-        -Map~UUID, Organisation~ organisations
-        -Map~UUID, SupplierProfile~ profiles
-        -Map~UUID, TrustSnapshot~ snapshots
+    class InMemoryStore {
+        -Map suppliers
+        -Map claims
+        -List evidences
+        -List checks
+        -Map attestations
+        -int idCounter
+        +nextId(String prefix) String
+        +save(Supplier supplier) Supplier
+        +findById(String id) Optional~Supplier~
+        +findAll() List~Supplier~
+        +saveClaim(Claim claim) void
+        +saveEvidence(Evidence evidence) void
+        +recordDecision(Claim claim, VerificationCheck check, Attestation attestation) void
+        +getActiveAttestations() List~Attestation~
     }
 
     class JdbcSupplierDao {
-        +saveOrganisation(Organisation org) Organisation
-        +findOrganisationById(UUID id) Optional~Organisation~
-        +findAllOrganisations() List~Organisation~
-        +deleteOrganisationById(UUID id) boolean
-        +saveProfile(SupplierProfile profile) SupplierProfile
-        +findProfileByOrganisationId(UUID orgId) Optional~SupplierProfile~
-        +findAllProfiles() List~SupplierProfile~
-        +findProfilesMatching(Predicate predicate) List~SupplierProfile~
-        +saveSnapshot(TrustSnapshot snapshot) TrustSnapshot
-        +findSnapshotByOrganisationId(UUID orgId) Optional~TrustSnapshot~
+        +save(Supplier s) Supplier
+        +findById(String id) Optional~Supplier~
+        +findAll() List~Supplier~
+        +findMatching(Predicate filter) List~Supplier~
+        +updateTrust(String supplierId, TrustBand band, double score) boolean
+        +deleteById(String id) boolean
+        +count() long
     }
 
     class DatabaseConfig {
-        +configure(String dbUrl, String dbUser, String dbPass)$ void
         +getUrl()$ String
         +getUser()$ String
         +getLastError()$ String
@@ -408,302 +210,180 @@ classDiagram
         +testConnection()$ boolean
     }
 
-    class InMemoryVerificationRepository {
-        -Map~UUID, Claim~ claims
-        -Map~UUID, Evidence~ evidenceMap
-        -Map~UUID, VerificationCheck~ checks
-        -Map~UUID, Attestation~ attestations
-        -Map~UUID, VerificationTask~ tasks
-        -PriorityBlockingQueue~VerificationTask~ taskPriorityQueue
-        -ReentrantReadWriteLock rwLock
-    }
-
-    class InMemoryAuditRepository {
-        -ConcurrentLinkedDeque~AuditEvent~ auditLog
-    }
-
-    class SupplierSearchService {
-        -SupplierRepository supplierRepo
-        +search(String query, String cat, TrustBand band, Integer minCap, String sort, boolean asc, int page, int size) PaginatedResult
-    }
-
-    class TrustEvaluationService {
-        -SupplierRepository supplierRepo
-        -VerificationRepository verificationRepo
-        +evaluateSupplier(UUID organisationId) TrustSnapshot
+    class SupplierService {
+        -InMemoryStore store
+        +search(String keyword, String category, TrustBand minBand, Integer minCapacity, String sortBy, int page, int pageSize) List
+        +getAllCategories() List~String~
+        +recalculateTrust(String supplierId) void
     }
 
     class VerificationService {
-        -VerificationRepository verificationRepo
-        -TrustEvaluationService trustEvaluationService
-        -AuditRepository auditRepo
-        +submitClaimWithEvidence(...) Claim
-        +processVerifierDecision(...) boolean
+        -InMemoryStore store
+        -SupplierService supplierService
+        -TaskBuffer~Claim~ reviewQueue
+        +submitClaim(String supplierId, String claimTypeKey, String label, String pillar, String value, String docTitle, String docType, String filePath) Claim
+        +verifyClaim(String claimId, String verifierName, VerificationMethod method, boolean approved, String note, int validSeconds) VerificationCheck
     }
 
-    class Exception {
-        <<JDK>>
-    }
-    class SupplierNotFoundException
-    class VerificationException
-    class InvalidDataException
-
-    SupplierRepository <|.. InMemorySupplierRepository
-    SupplierRepository <|.. JdbcSupplierDao
-    VerificationRepository <|.. InMemoryVerificationRepository
-    AuditRepository <|.. InMemoryAuditRepository
-
-    JdbcSupplierDao ..> DatabaseConfig : acquires connections
-    SupplierSearchService --> SupplierRepository
-    TrustEvaluationService --> SupplierRepository
-    TrustEvaluationService --> VerificationRepository
-    VerificationService --> VerificationRepository
-    VerificationService --> TrustEvaluationService
-    VerificationService --> AuditRepository
-
-    Exception <|-- SupplierNotFoundException
-    Exception <|-- VerificationException
-    Exception <|-- InvalidDataException
-```
-
----
-
-## 4. CLI Consoles & Concurrency Workers — UML Class Diagram
-
-`Main` wires shared session state (`SessionContext`), ANSI/ASCII terminal I/O (`ConsoleView`), the four role consoles (`BuyerMenu`, `SupplierMenu`, `VerifierMenu`, `SystemMenu`), the repeatable guided walkthrough (`DemoRunner`), and two background daemon threads (`DecayMonitorDaemon`, `SlaEscalationDaemon`).
-
-```mermaid
-classDiagram
-    class Main {
-        +main(String[] args)$ void
-    }
-
-    class ConsoleView {
-        -Scanner scanner
-        +hasNext() boolean
-        +checkAndPrintAlerts() void
-        +printBanner(SessionContext session) void
-        +printSection(String title) void
-        +printOk(String msg) void
-        +printWarn(String msg) void
-        +printError(String msg) void
-        +promptString(String label) String
-        +promptInt(String label, int defaultValue) int
-        +pressEnterToContinue() void
-    }
-
-    class SessionContext {
-        -UserRole currentRole
-        -String currentUserName
-        -Set~UUID~ comparisonTray
-        +getCurrentRole() UserRole
-        +setCurrentRole(UserRole role) void
-        +addToComparison(UUID supplierId) boolean
-        +removeFromComparison(UUID supplierId) boolean
-    }
-
-    class BuyerMenu {
-        +display() void
-    }
-
-    class SupplierMenu {
-        +display() void
-    }
-
-    class VerifierMenu {
-        +display() void
-    }
-
-    class SystemMenu {
-        +display() void
-    }
-
-    class DemoRunner {
-        +runGuidedDemo() void
+    class TaskBuffer~T~ {
+        -Queue~T~ queue
+        -int capacity
+        -boolean open
+        +produce(T item) void
+        +consume() T
+        +size() int
+        +shutdown() void
     }
 
     class Thread {
         <<JDK>>
     }
 
-    class DecayMonitorDaemon {
-        -long pollIntervalMillis
+    class DecayMonitorThread {
+        -InMemoryStore store
+        -SupplierService supplierService
+        -long pollMillis
         -volatile boolean running
+        -List~String~ alerts
         +run() void
-        +stopMonitoring() void
-    }
-
-    class SlaEscalationDaemon {
-        -long pollIntervalMillis
-        -volatile boolean running
-        +run() void
-        +stopDaemon() void
-    }
-
-    class CustomTaskQueue~T~ {
-        -Queue~T~ queue
-        -int capacity
-        -boolean active
-        +produce(T item) void
-        +consume() T
-        +pollWithTimeout(long timeoutMillis) T
-        +shutdown() void
-    }
-
-    class AlertBuffer {
-        -AlertBuffer INSTANCE$
-        -ConcurrentLinkedQueue~String~ buffer
-        +getInstance()$ AlertBuffer
-        +post(String alertMessage) void
-        +postAlert(String alertMessage) void
+        +checkExpiredAttestations() void
         +drainAlerts() List~String~
+        +stopMonitor() void
+        +printThreadStates()$ void
     }
 
-    class ThreadLifecycleMonitor {
-        +captureSupifyThreads()$ List~ThreadSnapshot~
-        +generateThreadStateReport()$ String
+    class CsvSupplierIO {
+        +exportToCsv(File file, List suppliers)$ void
+        +importFromCsv(File file)$ List
     }
 
-    Main --> BuyerMenu
-    Main --> SupplierMenu
-    Main --> VerifierMenu
-    Main --> SystemMenu
-    Main --> DemoRunner
-    Main --> DecayMonitorDaemon
-    Main --> SlaEscalationDaemon
-    Main --> SessionContext
-    Main --> ConsoleView
+    class AuditFileIO {
+        +appendAuditByteLog(File file, String eventText)$ void
+        +readAuditByteLog(File file)$ String
+        +tokenizeRule(String ruleExpression)$ List
+    }
 
-    BuyerMenu --> ConsoleView
-    BuyerMenu --> SessionContext
-    SupplierMenu --> ConsoleView
-    SupplierMenu --> SessionContext
-    VerifierMenu --> ConsoleView
-    VerifierMenu --> SessionContext
-    SystemMenu --> ConsoleView
-    SystemMenu --> SessionContext
-    SystemMenu --> ThreadLifecycleMonitor
-    SystemMenu --> AlertBuffer
-    DemoRunner --> ConsoleView
-    DemoRunner --> AlertBuffer
-    DemoRunner --> ThreadLifecycleMonitor
+    class Exception {
+        <<JDK>>
+    }
 
-    Thread <|-- DecayMonitorDaemon
-    Thread <|-- SlaEscalationDaemon
-    DecayMonitorDaemon --> AlertBuffer : posts expiry alerts
-    SlaEscalationDaemon --> AlertBuffer : posts SLA alerts
-    ConsoleView --> AlertBuffer : drains at prompt boundaries
-    SessionContext --> UserRole
+    class SupifyException {
+        +SupifyException(String message)
+        +SupifyException(String message, Throwable cause)
+    }
+
+    class Main {
+        +main(List args)$ void
+        +seedSuppliers(InMemoryStore store, VerificationService service)$ void
+    }
+
+    class SupifyTestRunner {
+        +main(List args)$ void
+    }
+
+    Repository <|.. InMemoryStore
+    Repository <|.. JdbcSupplierDao
+    JdbcSupplierDao ..> DatabaseConfig : gets connections
+    Thread <|-- DecayMonitorThread
+    Exception <|-- SupifyException
+
+    SupplierService --> InMemoryStore
+    VerificationService --> InMemoryStore
+    VerificationService --> SupplierService
+    VerificationService --> TaskBuffer
+    VerificationService ..> SupifyException : throws
+    DecayMonitorThread --> InMemoryStore
+    DecayMonitorThread --> SupplierService
+
+    Main --> InMemoryStore
+    Main --> SupplierService
+    Main --> VerificationService
+    Main --> DecayMonitorThread
+    Main --> TaskBuffer
+    Main --> CsvSupplierIO
+    Main --> AuditFileIO
+    Main --> DatabaseConfig
+    SupifyTestRunner ..> Main : seeds fixtures
 ```
 
 ---
 
-## 5. Verification Spine & Trust Recomputation Sequence
-
-The end-to-end verification lifecycle preserves strict separation of concerns: `VerificationService.submitClaimWithEvidence` binds uploaded proof to the newly generated `claim.getId()` and enqueues a review task, while verifiers write immutable checks and time-bounded attestations atomically under `ReentrantReadWriteLock`.
+## 4. End-to-End Verification Spine & Trust Recalculation Sequence
 
 ```mermaid
 sequenceDiagram
-    actor Sup as Supplier (SupplierMenu)
+    actor Sup as "Supplier (Main Menu [2])"
     participant VS as VerificationService
-    participant VR as InMemoryVerificationRepository
-    participant AR as AuditRepository
-    actor Ver as Verifier (VerifierMenu)
-    participant TE as TrustEvaluationService
+    participant IS as InMemoryStore
+    participant TB as TaskBuffer
+    actor Ver as "Verifier (Main Menu [3])"
+    participant SS as SupplierService
 
-    Sup->>VS: submitClaimWithEvidence(orgId, supplierName, key, label, pillar, value, evidence)
-    VS->>VR: saveClaim(claim [SUBMITTED]) + saveEvidence(evidence linked to claimId)
-    VS->>VR: enqueueTask(VerificationTask in PriorityBlockingQueue)
-    VS->>AR: recordEvent("claim.submitted")
+    Sup->>VS: submitClaim(supplierId, key, label, pillar, val, docTitle, type, path)
+    VS->>IS: saveClaim(Claim SUBMITTED) and saveEvidence(Evidence linked to claimId)
+    VS->>TB: produce(Claim)
     VS-->>Sup: Return submitted Claim
 
-    Ver->>VR: findPendingTasks() [ordered by priority & SLA]
-    Ver->>VS: processVerifierDecision(taskId, verifier, method, PASS, rationale, validity)
-    VS->>VR: executeVerificationDecision(taskId, immutable Check, Attestation)
-    Note over VR: Acquires writeLock, records Check, writes ACTIVE Attestation, sets Claim VERIFIED, marks Task DECIDED
-    VS->>AR: recordEvent("verification.decided")
-    VS->>TE: evaluateSupplier(orgId)
-    Note over TE: Computes weighted pillar scores and caps TrustBand if Identity/Legal missing
-    TE-->>VR: Read active attestations
-    TE-->>VS: Return updated TrustSnapshot
+    Ver->>IS: getPendingClaims()
+    Ver->>VS: verifyClaim(claimId, verifierName, method, approved, note, validSeconds)
+    VS->>IS: recordDecision(Claim, immutable VerificationCheck, Attestation)
+    Note over IS: Synchronized update saves Check, writes ACTIVE Attestation, sets Claim VERIFIED
+    VS->>SS: recalculateTrust(supplierId)
+    SS->>IS: Read claims and active attestations
+    Note over SS: Averages active method rigor scores and enforces Identity/Legal TrustBand caps
+    VS-->>Ver: Return VerificationCheck
 ```
 
 ### Trust Evaluation Capping Rules
 
-`TrustEvaluationService` applies strict gating rules before assigning a `TrustBand`:
-1. No active `IDENTITY` attestation → capped at **`UNVERIFIED`** (`score <= 0.30`).
-2. `IDENTITY` verified, but no active `LEGAL` attestation → capped at **`BASIC`** (`score <= 0.65`).
-3. Both present, plus at least one high-rigor check (`HUMAN_AUDIT` or `SITE_VISIT`) and weighted score ≥ 0.85 → **`AUDITED`**.
+`SupplierService.recalculateTrust(String supplierId)` counts only **`ACTIVE`** attestations (`Attestation.state == "ACTIVE"`) and enforces these gating rules:
+1. No active `IDENTITY` attestation → capped at **`UNVERIFIED`** (`score ≤ 0.30`).
+2. Active `IDENTITY`, but no active `LEGAL` attestation → capped at **`BASIC`** (`score ≤ 0.65`).
+3. Both present, plus at least one high-rigor check (`HUMAN_AUDIT` or `SITE_VISIT`), and weighted average `score ≥ 0.85` → **`AUDITED`**.
 4. Otherwise → **`VERIFIED`**.
 
 ---
 
-## 6. Concurrency, Background Daemons & Thread Lifecycle
-
-Background daemons keep trust scores accurate over time without corrupting active terminal prompts.
+## 5. Concurrency, Thread Lifecycle & File I/O Pipelines
 
 ```mermaid
 flowchart LR
-    DM["DecayMonitorDaemon (setDaemon=true, 4s sleep)"] -->|polls ACTIVE attestations| VR["InMemoryVerificationRepository"]
-    VR -->|expired validUntil| DECAY["attestation.checkAndApplyDecay() -> EXPIRED"]
-    DECAY --> AB["AlertBuffer (ConcurrentLinkedQueue)"]
-    DECAY --> AR["AuditRepository (attestation.expired)"]
+    DM["DecayMonitorThread (daemon=true, 4s sleep)"] -->|polls ACTIVE attestations| IS["InMemoryStore"]
+    IS -->|isExpired validUntil| EXP["att.expireIfNeeded() -> EXPIRED"]
+    EXP --> SS["SupplierService.recalculateTrust()"]
+    EXP --> BUF["Buffered Alerts List (synchronized drainAlerts)"]
+    BUF -->|drained at clean prompt boundary| CLI["Main Menu Prompt"]
 
-    SLA["SlaEscalationDaemon (setDaemon=true, 6s sleep)"] -->|"scans SLA < 2h"| PQ["PriorityBlockingQueue"]
-    PQ -->|"remove -> escalate(+25) -> offer (re-heapify)"| SLA
-    SLA --> AB
-
-    AB -->|"drainAlerts() at safe prompt boundary"| CV["ConsoleView (System.out)"]
-
-    PROD["Producer Thread"] -->|"produce() synchronized + notifyAll()"| CTQ["CustomTaskQueue (wait / notifyAll)"]
-    CTQ -->|"consume() guarded while-loop"| CONS["Consumer Thread"]
+    PROD["Producer Thread"] -->|"produce() while-guard + notifyAll()"| TB["TaskBuffer (LinkedList)"]
+    TB -->|"consume() while-guard + notifyAll()"| CONS["Consumer Thread"]
 ```
 
-### JVM Thread States Tracked (`ThreadLifecycleMonitor`)
+### JVM Thread States Tracked (`DecayMonitorThread.printThreadStates`)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NEW : new DecayMonitorDaemon() / Thread()
+    [*] --> NEW : new DecayMonitorThread() / new Thread()
     NEW --> RUNNABLE : start()
-    RUNNABLE --> TIMED_WAITING : Thread.sleep(pollIntervalMillis) / wait(timeout)
+    RUNNABLE --> TIMED_WAITING : Thread.sleep(pollMillis) / join(1000)
     TIMED_WAITING --> RUNNABLE : interval elapsed
-    RUNNABLE --> WAITING : CustomTaskQueue.wait() on empty or full
+    RUNNABLE --> WAITING : TaskBuffer.wait() on empty or full buffer
     WAITING --> RUNNABLE : notifyAll()
-    RUNNABLE --> BLOCKED : contending on synchronized / intrinsic lock
+    RUNNABLE --> BLOCKED : waiting for synchronized monitor lock
     BLOCKED --> RUNNABLE : lock acquired
-    RUNNABLE --> TERMINATED : stopMonitoring() / interrupt() / run() returns
+    RUNNABLE --> TERMINATED : stopMonitor() / run() returns
     TIMED_WAITING --> TERMINATED : InterruptedException -> interrupt() + break
     TERMINATED --> [*]
 ```
 
----
-
-## 7. File I/O & Stream Pipelines
-
-`SystemMenu` exercises three Java I/O mechanisms writing and validating files under `backend/data/`:
+### File I/O & Rule Parsing Pipelines
 
 ```mermaid
 flowchart LR
-    Profiles["Supplier Profiles + Organisations"] -->|"FileWriter + BufferedWriter"| CSV["data/suppliers_catalog_export.csv"]
-    CSV -->|"FileReader + BufferedReader (CsvDataExporterImporter)"| Records["ExportRecord List (Validated POJOs)"]
+    SUP["List of Suppliers"] -->|"FileWriter + BufferedWriter (CsvSupplierIO)"| CSV["data/suppliers.csv"]
+    CSV -->|"FileReader + BufferedReader"| IMP["Validated Supplier List"]
 
-    Events["Audit Payloads"] -->|"FileOutputStream + DataOutputStream (0x53504659 SPFY header)"| BIN["data/audit_ledger.bin"]
-    BIN -->|"FileInputStream + DataInputStream (AuditByteStreamHandler)"| ValidatedBin["BinaryAuditRecord List (Header-Verified)"]
+    EVT["Audit Log Text"] -->|"FileOutputStream (append=true)"| LOG["data/audit.log"]
+    LOG -->|"FileInputStream (AuditFileIO)"| TXT["UTF-8 Audit Log Output"]
 
-    Expr["Rule String (e.g. MIN_CAPACITY >= 50000)"] -->|"StringReader -> StreamTokenizer (RuleStreamTokenizer)"| Tokens["Token List (TT_WORD, TT_NUMBER, CHAR)"]
+    RULE["Rule String (CAPACITY >= 50000 AND SCORE >= 0.80)"] -->|"StringReader -> StreamTokenizer"| TOK["WORD / NUM / OP Token List"]
 ```
-
----
-
-## 8. Database (`db/`) & JDBC Status
-
-See [`database-architecture.md`](database-architecture.md) for the complete 9-table ER diagram and MySQL data-flow chart.
-
-- **Implemented now:**
-  - `db/schema/01_supify_schema.sql`, `db/seeds/01_canonical_suppliers.sql`, `db/procedures/01_views_and_procedures.sql`, and `db/setup_mysql.bat`.
-  - `DatabaseConfig` supporting `SUPIFY_DB_*` env vars, `-Dsupify.db.*` properties, driver detection (`isDriverAvailable()`), and live connection diagnostics (`SystemMenu` option `[6]`).
-  - Full-CRUD `JdbcSupplierDao` (`organisation`, `supplier_profile`, and `trust_snapshot` persistence via `PreparedStatement` + `ResultSet`).
-  - `backend/run.bat` and `backend/test.bat` wired with `-cp "bin;lib\*"`.
-- **Next increment:**
-  - Add `JdbcVerificationDao` and `JdbcAuditDao` implementing `VerificationRepository` and `AuditRepository`.
-  - Switch repository instantiation in `com.supify.app.Main` based on a `--db` flag or `DatabaseConfig.testConnection()`, falling back cleanly to `InMemory*` when offline.

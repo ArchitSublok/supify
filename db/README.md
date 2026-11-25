@@ -60,6 +60,6 @@ Run `setup_mysql.bat` from `db\` (or double-click in Explorer). It locates `mysq
 | DB User | `-Dsupify.db.user=...` | `SUPIFY_DB_USER` | `root` |
 | DB Password | `-Dsupify.db.pass=...` | `SUPIFY_DB_PASS` | `root` |
 
-Place `mysql-connector-j-*.jar` in `backend/lib/` (ignored by git via `.gitignore`). Both `backend/run.bat` and `backend/test.bat` load `-cp "bin;lib\*"` automatically, and **System & I/O → `[6] Database (JDBC) Status`** reports driver availability and live connectivity.
+Place `mysql-connector-j-*.jar` in `backend/lib/` (ignored by git via `.gitignore`). Both `backend/run.bat` and `backend/test.bat` load `-cp "bin;lib\*"` automatically, and **System & Admin → `[6] Database Connection Status`** reports driver availability and live connectivity.
 
 See [`docs/database-architecture.md`](../docs/database-architecture.md) for the full 9-table ER diagram and JDBC execution flow, [`docs/setup.md`](../docs/setup.md) for step-by-step installation, and [`docs/understanding.md`](../docs/understanding.md) §3 for the conceptual domain model.

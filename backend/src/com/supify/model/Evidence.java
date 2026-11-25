@@ -1,31 +1,28 @@
 package com.supify.model;
 
-import com.supify.model.enums.EvidenceKind;
-import java.time.Instant;
-import java.util.UUID;
-
-public class Evidence extends AbstractAuditEntity {
-    private final UUID claimId;
-    private final String storageRef;
-    private final EvidenceKind kind;
+public class Evidence {
+    private final String id;
+    private final String claimId;
     private final String title;
-    private final Instant issuedAt;
-    private final Instant expiresAt;
+    private final String docType;
+    private final String filePath;
 
-    public Evidence(UUID claimId, String storageRef, EvidenceKind kind, String title, Instant issuedAt, Instant expiresAt) {
-        super();
+    public Evidence(String id, String claimId, String title, String docType, String filePath) {
+        this.id = id;
         this.claimId = claimId;
-        this.storageRef = storageRef;
-        this.kind = kind;
         this.title = title;
-        this.issuedAt = issuedAt;
-        this.expiresAt = expiresAt;
+        this.docType = docType;
+        this.filePath = filePath;
     }
 
-    public UUID getClaimId() { return claimId; }
-    public String getStorageRef() { return storageRef; }
-    public EvidenceKind getKind() { return kind; }
+    public String getId() { return id; }
+    public String getClaimId() { return claimId; }
     public String getTitle() { return title; }
-    public Instant getIssuedAt() { return issuedAt; }
-    public Instant getExpiresAt() { return expiresAt; }
+    public String getDocType() { return docType; }
+    public String getFilePath() { return filePath; }
+
+    @Override
+    public String toString() {
+        return id + " [" + docType + "] " + title + " (" + filePath + ")";
+    }
 }

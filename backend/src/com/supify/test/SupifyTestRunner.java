@@ -1,156 +1,154 @@
 package com.supify.test;
 
-import com.supify.concurrency.AlertBuffer;
-import com.supify.concurrency.CustomTaskQueue;
-import com.supify.dao.GenericRepository;
-import com.supify.dao.memory.InMemoryAuditRepository;
-import com.supify.dao.memory.InMemorySupplierRepository;
-import com.supify.dao.memory.InMemoryVerificationRepository;
-import com.supify.exception.InvalidDataException;
-import com.supify.exception.SupplierNotFoundException;
-import com.supify.exception.VerificationException;
-import com.supify.io.AuditByteStreamHandler;
-import com.supify.io.CsvDataExporterImporter;
-import com.supify.io.RuleStreamTokenizer;
-import com.supify.model.Attestation;
-import com.supify.model.AuditEvent;
+import com.supify.app.Main;
+import com.supify.concurrency.DecayMonitorThread;
+import com.supify.concurrency.TaskBuffer;
+import com.supify.dao.DatabaseConfig;
+import com.supify.dao.InMemoryStore;
+import com.supify.dao.Repository;
+import com.supify.exception.SupifyException;
+import com.supify.io.AuditFileIO;
+import com.supify.io.CsvSupplierIO;
 import com.supify.model.Claim;
-import com.supify.model.Evidence;
-import com.supify.model.Organisation;
-import com.supify.model.PaginatedResult;
-import com.supify.model.SupplierProfile;
-import com.supify.model.TrustSnapshot;
-import com.supify.model.VerificationTask;
-import com.supify.model.enums.AttestationState;
-import com.supify.model.enums.CheckOutcome;
-import com.supify.model.enums.ClaimStatus;
-import com.supify.model.enums.EvidenceKind;
-import com.supify.model.enums.Pillar;
-import com.supify.model.enums.TaskState;
-import com.supify.model.enums.TrustBand;
-import com.supify.model.enums.VerificationMethod;
-import com.supify.service.SupplierSearchService;
-import com.supify.service.TrustEvaluationService;
+import com.supify.model.Supplier;
+import com.supify.model.TrustBand;
+import com.supify.model.VerificationCheck;
+import com.supify.model.VerificationMethod;
+import com.supify.service.SupplierService;
 import com.supify.service.VerificationService;
-import com.supify.util.SeedDataFactory;
 import java.io.File;
-import java.io.StreamTokenizer;
-import java.time.Duration;
-import java.time.Instant;
+import java.io.FileWriter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.function.Predicate;
 
-/**
- * Automated verification test suite for the Supify Java backend.
- * Zero external dependencies; validates domain spine, streams, concurrency, I/O, and exceptions.
- */
+/** Clean, modular test runner covering all core Supify backend workflows. */
 public class SupifyTestRunner {
+    private static int passed = 0;
+    private static int failed = 0;
 
-    public static void main(String[] args) {
-        System.out.println(">>> Starting Automated Supify Backend Verification Tests <<<\n");
+    public static void main(String[] args) throws Exception {
+        System.out.println("=== Supify Backend Automated Test Suite ===");
 
-        InMemorySupplierRepository supplierRepo = new InMemorySupplierRepository();
-        InMemoryVerificationRepository verificationRepo = new InMemoryVerificationRepository();
-        InMemoryAuditRepository auditRepo = new InMemoryAuditRepository();
+        testSeedDataAndGenerics();
+        testStreamSearchSortAndPagination();
+        testFourLayerVerificationSpine();
+        testTrustBandCappingAndRejection();
+        testProducerConsumerWaitNotify();
+        testDaemonDecayAndAlert();
+        testCsvCharacterStreams();
+        testByteStreamsAndStreamTokenizer();
+        testCheckedExceptionHandling();
+        testJdbcConfigAndDriver();
 
-        // Test 1: Seed data population
-        SeedDataFactory.populate(supplierRepo, verificationRepo);
-        List<SupplierProfile> profiles = supplierRepo.findAllProfiles();
-        List<VerificationTask> pendingTasks = verificationRepo.findPendingTasks();
-        assertCondition(profiles.size() == 5, "Test 1.1: SeedDataFactory populated 5 canonical suppliers");
-        assertCondition(pendingTasks.size() == 3, "Test 1.2: SeedDataFactory queued 3 pending verification tasks");
+        System.out.printf("%n=== TEST SUMMARY: %d PASSED, %d FAILED ===%n", passed, failed);
+        if (failed > 0) {
+            System.exit(1);
+        }
+    }
 
-        // Test 2: Stream API multi-facet search, sorting & pagination
-        SupplierSearchService searchService = new SupplierSearchService(supplierRepo);
-        PaginatedResult<SupplierSearchService.SupplierSearchResult> allSorted =
-                searchService.search("", "", null, null, "score", false, 1, 3);
-        assertCondition(allSorted.getTotalCount() == 5, "Test 2.1: Total matched suppliers = 5");
-        assertCondition(allSorted.getItems().size() == 3, "Test 2.2: Pagination pageSize=3 returns 3 items");
-        assertCondition(allSorted.getItems().get(0).overallTrustScore() >= allSorted.getItems().get(1).overallTrustScore(),
-                "Test 2.3: Descending trust score sort verified");
+    private static InMemoryStore newSeededStore(TaskBuffer<Claim> queue) {
+        InMemoryStore store = new InMemoryStore();
+        SupplierService supplierService = new SupplierService(store);
+        VerificationService verificationService = new VerificationService(store, supplierService, queue);
+        Main.seedSuppliers(store, verificationService);
+        return store;
+    }
 
-        PaginatedResult<SupplierSearchService.SupplierSearchResult> keywordSearch =
-                searchService.search("Fasteners", "", TrustBand.VERIFIED, 10000, "name", true, 1, 10);
-        assertCondition(keywordSearch.getTotalCount() == 1
-                        && keywordSearch.getItems().get(0).legalName().contains("Aravind"),
-                "Test 2.4: Multi-facet keyword + band + capacity filter matched Aravind Fasteners");
+    private static void testSeedDataAndGenerics() {
+        InMemoryStore store = newSeededStore(null);
+        List<Supplier> filtered = store.findMatching(s -> s.getCapacityPerMonth() >= 25000);
+        List<String> names = Repository.mapList(store.findAll(), Supplier::getName);
 
-        // Test 3: 4-layer verification spine & trust evaluation
-        TrustEvaluationService trustService = new TrustEvaluationService(supplierRepo, verificationRepo);
-        VerificationService verificationService = new VerificationService(verificationRepo, trustService, auditRepo);
+        Supplier temp = new Supplier("SUP-TMP", "Temp Vendor", "Delhi", "Packaging", 5000, 100, "7 days");
+        store.save(temp);
+        boolean found = store.findById("SUP-TMP").isPresent();
+        boolean deleted = store.deleteById("SUP-TMP");
 
-        Organisation aravindOrg = supplierRepo.findAllOrganisations().stream()
-                .filter(o -> o.getLegalName().contains("Aravind"))
-                .findFirst()
-                .orElseThrow();
+        check("1. Seed Data & Generics/Wildcards",
+                store.count() == 5
+                        && filtered.size() == 3
+                        && names.contains("Aravind Fasteners Pvt Ltd")
+                        && found && deleted);
+    }
 
-        long auditBefore = auditRepo.count();
-        Evidence sampleEvidence = new Evidence(
-                UUID.randomUUID(),
-                "storage://test/iatf-cert.pdf",
-                EvidenceKind.PDF,
-                "IATF 16949 Certificate",
-                Instant.now().minus(Duration.ofDays(10)),
-                Instant.now().plus(Duration.ofDays(365))
-        );
-        Claim submittedClaim = verificationService.submitClaimWithEvidence(
-                aravindOrg.getId(),
-                aravindOrg.getLegalName(),
-                "iatf_16949_test",
-                "IATF 16949 Certification",
-                Pillar.QUALITY,
-                "CERT-IATF-9901",
-                sampleEvidence
-        );
-        assertCondition(submittedClaim.getStatus() == ClaimStatus.SUBMITTED,
-                "Test 3.1: Claim transitioned to SUBMITTED on intake");
+    private static void testStreamSearchSortAndPagination() {
+        InMemoryStore store = newSeededStore(null);
+        SupplierService service = new SupplierService(store);
 
-        VerificationTask newTask = verificationRepo.findPendingTasks().stream()
-                .filter(t -> t.getClaimId().equals(submittedClaim.getId()))
-                .findFirst()
-                .orElse(null);
-        assertCondition(newTask != null, "Test 3.2: VerificationTask automatically enqueued for submitted claim");
+        List<Supplier> filtered = service.search("Pune", "", TrustBand.VERIFIED, 10000, "capacity", 1, 5);
+        List<Supplier> page1 = service.search("", "", null, null, "name", 1, 2);
+        List<Supplier> page2 = service.search("", "", null, null, "name", 2, 2);
+        List<String> categories = service.getAllCategories();
 
-        boolean decided = verificationService.processVerifierDecision(
-                newTask.getId(),
-                "Verifier #01",
-                VerificationMethod.HUMAN_AUDIT,
-                CheckOutcome.PASS,
-                "Verified IATF certificate registry checksum and facility scope.",
-                Duration.ofDays(365)
-        );
-        assertCondition(decided, "Test 3.3: Verifier PASS decision recorded atomically");
+        check("2. Stream Search, Sort & Pagination",
+                filtered.size() == 1
+                        && filtered.get(0).getId().equals("SUP-2")
+                        && page1.size() == 2 && page2.size() == 2
+                        && !page1.get(0).getName().equals(page2.get(0).getName())
+                        && categories.size() == 5);
+    }
 
-        Claim updatedClaim = verificationRepo.findClaimById(submittedClaim.getId()).orElseThrow();
-        Optional<Attestation> attestationOpt = verificationRepo.findActiveAttestationByClaim(submittedClaim.getId());
-        assertCondition(updatedClaim.getStatus() == ClaimStatus.VERIFIED,
-                "Test 3.4: Claim status updated to VERIFIED after PASS check");
-        assertCondition(attestationOpt.isPresent() && attestationOpt.get().getState() == AttestationState.ACTIVE,
-                "Test 3.5: Active time-bounded Attestation issued");
+    private static void testFourLayerVerificationSpine() throws Exception {
+        InMemoryStore store = new InMemoryStore();
+        SupplierService supplierService = new SupplierService(store);
+        VerificationService verificationService = new VerificationService(store, supplierService, null);
 
-        TrustSnapshot recomputed = trustService.evaluateSupplier(aravindOrg.getId());
-        assertCondition(recomputed.getOverallScore() > 0.0,
-                "Test 3.6: TrustEvaluationService recomputed supplier trust snapshot");
+        Supplier sup = new Supplier("SUP-9", "Apex Precision", "Chennai", "Machining", 20000, 500, "12 days");
+        store.save(sup);
 
-        List<AuditEvent> recentAudit = auditRepo.findRecentEvents(5);
-        assertCondition(auditRepo.count() >= auditBefore + 2
-                        && recentAudit.get(0).getSequenceNumber() > recentAudit.get(1).getSequenceNumber(),
-                "Test 3.7: Monotonic AuditEvent sequence numbers verified");
+        Claim c1 = verificationService.submitClaim("SUP-9", "gst", "GST Active", "IDENTITY", "33AAACA1111Z1", "GST PDF", "PDF", "gst.pdf");
+        Claim c2 = verificationService.submitClaim("SUP-9", "legal", "MCA Certificate", "LEGAL", "CIN-991", "MCA PDF", "PDF", "mca.pdf");
+        VerificationCheck chk1 = verificationService.verifyClaim(c1.getId(), "Ver-1", VerificationMethod.THIRD_PARTY_API, true, "GST verified", 3600);
+        VerificationCheck chk2 = verificationService.verifyClaim(c2.getId(), "Ver-1", VerificationMethod.HUMAN_AUDIT, true, "Legal audit passed", 3600);
 
-        // Test 4: Producer-consumer CustomTaskQueue (wait/notifyAll)
-        CustomTaskQueue<String> pcQueue = new CustomTaskQueue<>(2);
+        check("3. 4-Layer Spine (Claim -> Evidence -> Check -> Attestation)",
+                "PASS".equals(chk1.getOutcome())
+                        && "PASS".equals(chk2.getOutcome())
+                        && "VERIFIED".equals(c1.getStatus())
+                        && store.getEvidenceForClaim(c1.getId()).size() == 1
+                        && store.getChecksForClaim(c2.getId()).size() == 1
+                        && store.getActiveAttestationForClaim(c1.getId()).isPresent()
+                        && sup.getTrustBand() == TrustBand.VERIFIED);
+    }
+
+    private static void testTrustBandCappingAndRejection() throws Exception {
+        InMemoryStore store = new InMemoryStore();
+        SupplierService supplierService = new SupplierService(store);
+        VerificationService verificationService = new VerificationService(store, supplierService, null);
+
+        Supplier sup = new Supplier("SUP-CAP", "No-Identity Co", "Surat", "Textiles", 30000, 500, "10 days");
+        store.save(sup);
+
+        // Missing IDENTITY caps score at UNVERIFIED (<= 0.30) even with SITE_VISIT QUALITY proof
+        Claim qualityClaim = verificationService.submitClaim("SUP-CAP", "iso", "ISO 9001", "QUALITY", "ISO-1", "ISO PDF", "PDF", "iso.pdf");
+        verificationService.verifyClaim(qualityClaim.getId(), "Aud-1", VerificationMethod.SITE_VISIT, true, "Site visit passed", 3600);
+        boolean cappedUnverified = sup.getTrustBand() == TrustBand.UNVERIFIED && sup.getTrustScore() <= 0.30;
+
+        // Adding IDENTITY without LEGAL caps at BASIC (<= 0.65)
+        Claim idClaim = verificationService.submitClaim("SUP-CAP", "gst", "GST", "IDENTITY", "24ABC", "GST PDF", "PDF", "gst.pdf");
+        verificationService.verifyClaim(idClaim.getId(), "Ver-1", VerificationMethod.THIRD_PARTY_API, true, "GST ok", 3600);
+        boolean cappedBasic = sup.getTrustBand() == TrustBand.BASIC && sup.getTrustScore() <= 0.65;
+
+        // FAIL decision marks claim REJECTED and creates zero attestation
+        Claim badClaim = verificationService.submitClaim("SUP-CAP", "legal", "MCA", "LEGAL", "BAD", "Blurry scan", "IMAGE", "bad.png");
+        VerificationCheck failCheck = verificationService.verifyClaim(badClaim.getId(), "Ver-1", VerificationMethod.DOCUMENT_REVIEW, false, "Scan unreadable", 3600);
+        boolean rejectedCleanly = "FAIL".equals(failCheck.getOutcome())
+                && "REJECTED".equals(badClaim.getStatus())
+                && store.getActiveAttestationForClaim(badClaim.getId()).isEmpty();
+
+        check("4. Trust Band Capping & FAIL Rejection Rules",
+                cappedUnverified && cappedBasic && rejectedCleanly);
+    }
+
+    private static void testProducerConsumerWaitNotify() throws InterruptedException {
+        TaskBuffer<String> buffer = new TaskBuffer<>(2);
         List<String> consumed = new ArrayList<>();
+
         Thread producer = new Thread(() -> {
             try {
-                pcQueue.produce("item-1");
-                pcQueue.produce("item-2");
-                pcQueue.produce("item-3");
+                buffer.produce("TASK-1");
+                buffer.produce("TASK-2");
+                buffer.produce("TASK-3");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -159,159 +157,125 @@ public class SupifyTestRunner {
         Thread consumer = new Thread(() -> {
             try {
                 for (int i = 0; i < 3; i++) {
-                    String item = pcQueue.consume();
-                    if (item != null) consumed.add(item);
+                    consumed.add(buffer.consume());
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }, "Test-Consumer");
 
-        try {
-            producer.start();
-            consumer.start();
-            producer.join(3000);
-            consumer.join(3000);
-            pcQueue.shutdown();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            assertCondition(false, "Test 4: Producer-Consumer interrupted unexpectedly");
-        }
-        assertCondition(consumed.size() == 3 && consumed.get(0).equals("item-1") && consumed.get(2).equals("item-3"),
-                "Test 4: Bounded CustomTaskQueue producer-consumer coordination with wait/notifyAll passed");
+        producer.start();
+        consumer.start();
+        producer.join(3000);
+        consumer.join(3000);
+        buffer.shutdown();
 
-        // Test 5: PriorityBlockingQueue heap re-sort escalation + AlertBuffer
-        PriorityBlockingQueue<VerificationTask> pq = verificationRepo.getTaskPriorityQueue();
-        VerificationTask lowPriorityTask = verificationRepo.findPendingTasks().stream()
-                .filter(t -> t.getSupplierName().contains("Kavach"))
-                .findFirst()
-                .orElse(null);
-        assertCondition(lowPriorityTask != null, "Test 5.1: Located pending task for heap re-sort test");
-        pq.remove(lowPriorityTask);
-        lowPriorityTask.escalate(200);
-        pq.offer(lowPriorityTask);
-        assertCondition(pq.peek() == lowPriorityTask && lowPriorityTask.getState() == TaskState.ESCALATED,
-                "Test 5.2: Removing, escalating (+200), and re-offering restored PriorityBlockingQueue heap head");
-
-        AlertBuffer.getInstance().drainAlerts();
-        AlertBuffer.getInstance().postAlert("Test escalation alert");
-        List<String> drainedAlerts = AlertBuffer.getInstance().drainAlerts();
-        assertCondition(drainedAlerts.size() == 1 && drainedAlerts.get(0).contains("Test escalation alert"),
-                "Test 5.3: AlertBuffer safely queued and drained background alert");
-
-        // Prepare clean test directory under data/
-        File dataDir = new File("data");
-        if (!dataDir.exists()) dataDir.mkdirs();
-
-        // Test 6: Character streams CSV export & import round-trip
-        File tempCsv = new File(dataDir, "test_suppliers_roundtrip.csv");
-        tempCsv.delete();
-        try {
-            Map<UUID, Organisation> orgMap = new HashMap<>();
-            for (Organisation org : supplierRepo.findAllOrganisations()) {
-                orgMap.put(org.getId(), org);
-            }
-            CsvDataExporterImporter.exportSuppliersToCsv(tempCsv, supplierRepo.findAllProfiles(), orgMap);
-            List<CsvDataExporterImporter.ExportRecord> imported = CsvDataExporterImporter.importSuppliersFromCsv(tempCsv);
-            assertCondition(imported.size() == 5,
-                    "Test 6: Character-stream CSV export & import round-trip preserved all 5 suppliers");
-        } catch (Exception e) {
-            assertCondition(false, "Test 6 failed with exception: " + e.getMessage());
-        } finally {
-            tempCsv.delete();
-        }
-
-        // Test 7: Byte streams binary audit write & magic header read verification
-        File tempBin = new File(dataDir, "test_audit_ledger.bin");
-        tempBin.delete();
-        try {
-            AuditByteStreamHandler.appendBinaryRecord(tempBin, "test.action", "payload-alpha");
-            AuditByteStreamHandler.appendBinaryRecord(tempBin, "test.verify", "payload-beta");
-            List<AuditByteStreamHandler.BinaryAuditRecord> binRecords = AuditByteStreamHandler.readBinaryRecords(tempBin);
-            assertCondition(binRecords.size() == 2 && binRecords.get(1).payload().equals("payload-beta"),
-                    "Test 7: Byte-stream binary audit write & SPFY magic header read verified");
-        } catch (Exception e) {
-            assertCondition(false, "Test 7 failed with exception: " + e.getMessage());
-        } finally {
-            tempBin.delete();
-        }
-
-        // Test 8: StreamTokenizer rule parsing
-        try {
-            List<RuleStreamTokenizer.Token> tokens = RuleStreamTokenizer.tokenizeCriteria("MIN_SCORE >= 70 AND ACTIVE == 1");
-            assertCondition(tokens.size() == 9
-                            && tokens.get(0).type() == StreamTokenizer.TT_WORD
-                            && tokens.get(0).sval().equals("MIN_SCORE")
-                            && tokens.get(3).type() == StreamTokenizer.TT_NUMBER
-                            && tokens.get(3).nval() == 70.0,
-                    "Test 8: StreamTokenizer parsed rule words, numbers, and comparison operators");
-        } catch (Exception e) {
-            assertCondition(false, "Test 8 failed with exception: " + e.getMessage());
-        }
-
-        // Test 9: Custom exception hierarchy verification
-        SupplierNotFoundException snfe = new SupplierNotFoundException("Supplier missing");
-        VerificationException ve = new VerificationException("Verification blocked", new IllegalStateException("cause"));
-        InvalidDataException ide = new InvalidDataException("Invalid field");
-        assertCondition(snfe instanceof Exception && ve instanceof Exception && ide instanceof Exception,
-                "Test 9: Custom exception classes extend java.lang.Exception cleanly");
-
-        // Test 10: GenericRepository<T extends Identifiable<ID>, ID> type safety & wildcard predicate
-        GenericRepository<Organisation, UUID> orgGenericRepo = new GenericRepository<>() {
-            private final Map<UUID, Organisation> store = new HashMap<>();
-
-            @Override
-            public Organisation save(Organisation entity) {
-                store.put(entity.getId(), entity);
-                return entity;
-            }
-
-            @Override
-            public Optional<Organisation> findById(UUID id) {
-                return Optional.ofNullable(store.get(id));
-            }
-
-            @Override
-            public List<Organisation> findAll() {
-                return new ArrayList<>(store.values());
-            }
-
-            @Override
-            public List<Organisation> findMatching(Predicate<? super Organisation> predicate) {
-                List<Organisation> matched = new ArrayList<>();
-                for (Organisation o : store.values()) {
-                    if (predicate.test(o)) matched.add(o);
-                }
-                return matched;
-            }
-
-            @Override
-            public boolean deleteById(UUID id) {
-                return store.remove(id) != null;
-            }
-
-            @Override
-            public long count() {
-                return store.size();
-            }
-        };
-        orgGenericRepo.save(aravindOrg);
-        assertCondition(orgGenericRepo.count() == 1
-                        && orgGenericRepo.findById(aravindOrg.getId()).isPresent()
-                        && orgGenericRepo.findMatching(o -> o.getLocation().contains("Coimbatore")).size() == 1
-                        && orgGenericRepo.deleteById(aravindOrg.getId())
-                        && orgGenericRepo.count() == 0,
-                "Test 10: GenericRepository<Organisation, UUID> CRUD and wildcard Predicate verified");
-
-        System.out.println("\n>>> ALL SUPIFY BACKEND VERIFICATION TESTS PASSED SUCCESSFULLY! <<<");
+        check("5. TaskBuffer Producer-Consumer (wait / notifyAll)",
+                consumed.equals(List.of("TASK-1", "TASK-2", "TASK-3")));
     }
 
-    private static void assertCondition(boolean condition, String message) {
+    private static void testDaemonDecayAndAlert() throws Exception {
+        InMemoryStore store = new InMemoryStore();
+        SupplierService supplierService = new SupplierService(store);
+        VerificationService verificationService = new VerificationService(store, supplierService, null);
+
+        Supplier sup = new Supplier("SUP-DECAY", "Decay Demo Co", "Noida", "Electronics", 10000, 100, "7 days");
+        store.save(sup);
+
+        Claim c = verificationService.submitClaim("SUP-DECAY", "gst", "GST Short", "IDENTITY", "09ABC", "GST PDF", "PDF", "gst.pdf");
+        verificationService.verifyClaim(c.getId(), "Ver-1", VerificationMethod.DOCUMENT_REVIEW, true, "1s expiry test", 1);
+
+        DecayMonitorThread daemon = new DecayMonitorThread(store, supplierService, 200);
+        boolean isDaemon = daemon.isDaemon();
+        daemon.start();
+        Thread.sleep(1500);
+        daemon.stopMonitor();
+
+        check("6. Daemon Auto-Decay & Non-Blocking Alert",
+                isDaemon
+                        && "EXPIRED".equals(c.getStatus())
+                        && store.getActiveAttestationForClaim(c.getId()).isEmpty()
+                        && sup.getTrustBand() == TrustBand.UNVERIFIED
+                        && !daemon.drainAlerts().isEmpty());
+    }
+
+    private static void testCsvCharacterStreams() throws Exception {
+        InMemoryStore store = newSeededStore(null);
+        File csvFile = new File("data/test_suite_suppliers.csv");
+        try {
+            CsvSupplierIO.exportToCsv(csvFile, store.findAll());
+            // Append one malformed line to verify import skips bad records cleanly
+            try (FileWriter fw = new FileWriter(csvFile, true)) {
+                fw.write("BAD,ROW,ONLY,4,COLS\n");
+            }
+            List<Supplier> imported = CsvSupplierIO.importFromCsv(csvFile);
+            check("7. CSV Character Streams & Row Validation", imported.size() == 5);
+        } finally {
+            csvFile.delete();
+        }
+    }
+
+    private static void testByteStreamsAndStreamTokenizer() throws Exception {
+        File logFile = new File("data/test_suite_audit.log");
+        try {
+            AuditFileIO.appendAuditByteLog(logFile, "verifier.approved CLM-101");
+            String contents = AuditFileIO.readAuditByteLog(logFile);
+            List<String> tokens = AuditFileIO.tokenizeRule("CAPACITY >= 50000 AND SCORE >= 0.80");
+
+            check("8. Byte Streams & StreamTokenizer",
+                    contents.contains("verifier.approved CLM-101")
+                            && tokens.size() == 9
+                            && tokens.get(0).equals("WORD(CAPACITY)")
+                            && tokens.get(3).equals("NUM(50000.0)"));
+        } finally {
+            logFile.delete();
+        }
+    }
+
+    private static void testCheckedExceptionHandling() {
+        InMemoryStore store = newSeededStore(null);
+        SupplierService supplierService = new SupplierService(store);
+        VerificationService verificationService = new VerificationService(store, supplierService, null);
+
+        boolean missingSup = false;
+        boolean blankLabel = false;
+        boolean missingClaim = false;
+        boolean blankNote = false;
+
+        try {
+            verificationService.submitClaim("MISSING-SUP", "k", "Label", "QUALITY", "val", "", "PDF", "");
+        } catch (SupifyException e) { missingSup = true; }
+
+        try {
+            verificationService.submitClaim("SUP-1", "k", "   ", "QUALITY", "val", "", "PDF", "");
+        } catch (SupifyException e) { blankLabel = true; }
+
+        try {
+            verificationService.verifyClaim("NO-SUCH-CLM", "Ver", VerificationMethod.DOCUMENT_REVIEW, true, "ok", 60);
+        } catch (SupifyException e) { missingClaim = true; }
+
+        try {
+            verificationService.verifyClaim("CLM-129", "Ver", VerificationMethod.DOCUMENT_REVIEW, true, "  ", 60);
+        } catch (SupifyException e) { blankNote = true; }
+
+        check("9. Checked SupifyException Guards",
+                missingSup && blankLabel && missingClaim && blankNote);
+    }
+
+    private static void testJdbcConfigAndDriver() {
+        String url = DatabaseConfig.getUrl();
+        boolean driverOk = DatabaseConfig.isDriverAvailable();
+        check("10. JDBC Config & Driver Availability",
+                url != null && url.startsWith("jdbc:mysql://") && driverOk);
+    }
+
+    private static void check(String name, boolean condition) {
         if (condition) {
-            System.out.println("  [PASS] " + message);
+            passed++;
+            System.out.println("  [PASS] " + name);
         } else {
-            System.err.println("  [FAIL] " + message);
-            System.exit(1);
+            failed++;
+            System.err.println("  [FAIL] " + name);
         }
     }
 }

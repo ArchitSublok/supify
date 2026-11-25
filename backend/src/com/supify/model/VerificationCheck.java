@@ -1,51 +1,38 @@
 package com.supify.model;
 
-import com.supify.model.enums.CheckOutcome;
-import com.supify.model.enums.VerificationMethod;
-import java.time.Instant;
-import java.util.Objects;
-import java.util.UUID;
+import java.time.LocalDateTime;
 
-/** Immutable verification event authored by the platform or an accredited verifier. */
-public final class VerificationCheck implements Identifiable<UUID> {
-    private final UUID id;
-    private final UUID claimId;
+/** Immutable record of a verifier decision. Once created, fields cannot be changed. */
+public final class VerificationCheck {
+    private final String id;
+    private final String claimId;
     private final VerificationMethod method;
-    private final CheckOutcome outcome;
-    private final double confidence;
-    private final String performedBy;
-    private final Instant performedAt;
-    private final String rationale;
+    private final String outcome;
+    private final String verifierName;
+    private final LocalDateTime checkedAt;
+    private final String note;
 
-    public VerificationCheck(UUID claimId, VerificationMethod method, CheckOutcome outcome, double confidence, String performedBy, String rationale) {
-        this.id = UUID.randomUUID();
-        this.claimId = Objects.requireNonNull(claimId, "claimId is required");
-        this.method = Objects.requireNonNull(method, "method is required");
-        this.outcome = Objects.requireNonNull(outcome, "outcome is required");
-        this.confidence = confidence;
-        this.performedBy = Objects.requireNonNull(performedBy, "performedBy is required");
-        this.performedAt = Instant.now();
-        this.rationale = Objects.requireNonNull(rationale, "rationale is mandatory");
-    }
-
-    public VerificationCheck(UUID id, UUID claimId, VerificationMethod method, CheckOutcome outcome, double confidence, String performedBy, Instant performedAt, String rationale) {
+    public VerificationCheck(String id, String claimId, VerificationMethod method,
+                             String outcome, String verifierName, String note) {
         this.id = id;
         this.claimId = claimId;
         this.method = method;
         this.outcome = outcome;
-        this.confidence = confidence;
-        this.performedBy = performedBy;
-        this.performedAt = performedAt;
-        this.rationale = rationale;
+        this.verifierName = verifierName;
+        this.checkedAt = LocalDateTime.now();
+        this.note = note;
     }
 
-    @Override
-    public UUID getId() { return id; }
-    public UUID getClaimId() { return claimId; }
+    public String getId() { return id; }
+    public String getClaimId() { return claimId; }
     public VerificationMethod getMethod() { return method; }
-    public CheckOutcome getOutcome() { return outcome; }
-    public double getConfidence() { return confidence; }
-    public String getPerformedBy() { return performedBy; }
-    public Instant getPerformedAt() { return performedAt; }
-    public String getRationale() { return rationale; }
+    public String getOutcome() { return outcome; }
+    public String getVerifierName() { return verifierName; }
+    public LocalDateTime getCheckedAt() { return checkedAt; }
+    public String getNote() { return note; }
+
+    @Override
+    public String toString() {
+        return id + " | " + outcome + " via " + method + " by " + verifierName + " (" + note + ")";
+    }
 }

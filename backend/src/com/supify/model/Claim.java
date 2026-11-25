@@ -1,66 +1,39 @@
 package com.supify.model;
 
-import com.supify.model.enums.ClaimStatus;
-import com.supify.model.enums.Pillar;
-import java.time.Instant;
-import java.util.Objects;
-import java.util.UUID;
-
-public class Claim extends AbstractAuditEntity {
-    private final UUID organisationId;
+public class Claim {
+    private final String id;
+    private final String supplierId;
     private final String claimTypeKey;
     private final String label;
-    private final Pillar pillar;
-    private final String assertedValue;
-    private ClaimStatus status;
-    private Instant submittedAt;
-    private UUID supersededBy;
+    private final String pillar;
+    private final String value;
+    private String status;
 
-    public Claim(UUID organisationId, String claimTypeKey, String label, Pillar pillar, String assertedValue) {
-        super();
-        this.organisationId = Objects.requireNonNull(organisationId, "organisationId is required");
-        this.claimTypeKey = Objects.requireNonNull(claimTypeKey, "claimTypeKey is required");
-        this.label = Objects.requireNonNull(label, "label is required");
-        this.pillar = Objects.requireNonNull(pillar, "pillar is required");
-        this.assertedValue = assertedValue;
-        this.status = ClaimStatus.DRAFT;
-    }
-
-    public Claim(UUID id, Instant createdAt, Instant updatedAt, UUID organisationId, String claimTypeKey, String label, Pillar pillar, String assertedValue, ClaimStatus status, Instant submittedAt, UUID supersededBy) {
-        super(id, createdAt, updatedAt);
-        this.organisationId = organisationId;
+    public Claim(String id, String supplierId, String claimTypeKey,
+                 String label, String pillar, String value) {
+        this.id = id;
+        this.supplierId = supplierId;
         this.claimTypeKey = claimTypeKey;
         this.label = label;
         this.pillar = pillar;
-        this.assertedValue = assertedValue;
-        this.status = status;
-        this.submittedAt = submittedAt;
-        this.supersededBy = supersededBy;
+        this.value = value;
+        this.status = "SUBMITTED";
     }
 
-    public UUID getOrganisationId() { return organisationId; }
+    public String getId() { return id; }
+    public String getSupplierId() { return supplierId; }
     public String getClaimTypeKey() { return claimTypeKey; }
     public String getLabel() { return label; }
-    public Pillar getPillar() { return pillar; }
-    public String getAssertedValue() { return assertedValue; }
-    public ClaimStatus getStatus() { return status; }
-    public Instant getSubmittedAt() { return submittedAt; }
-    public UUID getSupersededBy() { return supersededBy; }
+    public String getPillar() { return pillar; }
+    public String getValue() { return value; }
+    public synchronized String getStatus() { return status; }
 
-    public synchronized void submit() {
-        this.status = ClaimStatus.SUBMITTED;
-        this.submittedAt = Instant.now();
-        touch();
-    }
-
-    public synchronized void setStatus(ClaimStatus status) {
+    public synchronized void setStatus(String status) {
         this.status = status;
-        touch();
     }
 
-    public synchronized void markSuperseded(UUID newClaimId) {
-        this.supersededBy = newClaimId;
-        this.status = ClaimStatus.REVOKED;
-        touch();
+    @Override
+    public String toString() {
+        return id + " [" + pillar + "] " + label + " = " + value + " (" + status + ")";
     }
 }

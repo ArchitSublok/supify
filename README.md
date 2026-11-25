@@ -11,7 +11,7 @@ It exists because of one problem: a buyer cannot cheaply tell whether a supplier
 ## What is built right now
 
 1. **React Frontend (`src/`)** — interactive SPA powered by Vite, React, React Router, Tailwind CSS, and Zustand using HTTP fixtures in `public/data/*.json` ([Frontend architecture](docs/architecture.md)).
-2. **Java Backend & Concurrency CLI (`backend/`)** — modular, pure-ASCII Java application modeling the 4-layer verification spine (`Claim -> Evidence -> VerificationCheck -> Attestation`), repeatable `DemoRunner` walkthrough, background SLA/decay daemons, Stream API search, file I/O streams, checked exceptions, and full-CRUD `JdbcSupplierDao` ([Backend architecture & UML](docs/backend-architecture.md)).
+2. **Java Backend & CLI (`backend/`)** — clean, 20-file pure-Java application modeling the 4-layer verification spine (`Claim -> Evidence -> VerificationCheck -> Attestation`), background decay daemon (`DecayMonitorThread`), bounded `TaskBuffer` (`wait()`/`notifyAll()`), Stream API search, CSV/byte file I/O & `StreamTokenizer`, checked `SupifyException`, and CRUD `JdbcSupplierDao` ([Backend architecture & UML](docs/backend-architecture.md)).
 3. **MySQL 8.0 Database & JDBC (`db/`)** — normalized 9-table InnoDB schema, canonical SQL seeds, catalog/queue views, append-only ledger triggers, decay stored procedure, and `setup_mysql.bat` ([Database ER & JDBC architecture](docs/database-architecture.md)).
 
 | You can... | Where |
@@ -48,10 +48,10 @@ Open http://localhost:5173. Build for production with `npm run build`.
 
 ### Backend CLI (Java)
 
-The pure-Java backend CLI (`backend/src/com/supify/`) runs interactively with zero external JARs using the bundled in-memory repositories and seed fixtures:
+The pure-Java backend CLI (`backend/src/com/supify/`) runs interactively with zero external JARs using the bundled in-memory store (`InMemoryStore`) and seeded suppliers:
 
-- **Launch interactive CLI (`backend\run.bat`):** Compiles into `backend\bin\` and runs `com.supify.app.Main` (`-cp "bin;lib\*"`) with four role consoles (**Buyer**, **Supplier**, **Verifier**, **System & I/O**) plus **`[5] Quick Guided Demo`** (`DemoRunner`) and one-key **`[1] List All Suppliers`**.
-- **Run automated verification suite (`backend\test.bat`):** Executes `com.supify.test.SupifyTestRunner` (22 assertions across seed fixtures, Stream API search, 4-layer spine decisions, `CustomTaskQueue` `wait()`/`notifyAll()`, `PriorityBlockingQueue` escalation, CSV/binary streams, `StreamTokenizer`, custom exceptions, and `GenericRepository`).
+- **Launch interactive CLI (`backend\run.bat`):** Compiles into `backend\bin\` and runs `com.supify.app.Main` (`-cp "bin;lib\*"`) with four consoles (**Buyer**, **Supplier**, **Verifier**, **System & Admin**) including live 30-second attestation decay and Stream/I/O/JDBC tooling.
+- **Run automated test suite (`backend\test.bat`):** Executes `com.supify.test.SupifyTestRunner` (10 test groups covering generics, Stream search, 4-layer spine & capping, `TaskBuffer` `wait()`/`notifyAll()`, `DecayMonitorThread`, CSV/byte streams, `StreamTokenizer`, checked exceptions, and JDBC driver config).
 
 ```bat
 cd backend
@@ -120,13 +120,13 @@ These come from the design docs and are visible in the running app:
 - [`docs/architecture.md`](docs/architecture.md) — frontend architecture: layers, state, contracts
 - [`docs/backend-architecture.md`](docs/backend-architecture.md) — backend UML class diagrams, sequence flows, concurrency & I/O architecture
 - [`docs/database-architecture.md`](docs/database-architecture.md) — MySQL 8.0 ER diagram, JDBC data flow, and axiom-to-schema mapping
-- [`backend/README.md`](backend/README.md) — Java backend compilation, `.bat` runners, syllabus mapping, and viva Q&A
+- [`backend/README.md`](backend/README.md) — Java backend compilation, `.bat` runners, package layout, and CLI flows
 - [`db/README.md`](db/README.md) — MySQL schema, seeds, triggers, `setup_mysql.bat`, and `SUPIFY_DB_*` configuration
 - [`docs/contract/supplier-api.md`](docs/contract/supplier-api.md) — the data contract the fixtures satisfy
 
 ## Status
 
 - **Frontend:** Routing, Context/reducer state, Zustand dashboard, validated forms, and async workspace recovery flows running on HTTP fixtures.
-- **Backend CLI:** Pure-Java CLI (`Main`, four role consoles, repeatable `DemoRunner`, pure-ASCII tables, concurrency daemons, I/O streams, `SupifyTestRunner`, and `run.bat`/`test.bat` with `-cp "bin;lib\*"`) implemented in `backend/`.
-- **Database & JDBC (Phase 1):** MySQL 8.0 schema (9 tables), canonical seeds, views, append-only triggers, decay stored procedure, `setup_mysql.bat`, env-configurable `DatabaseConfig`, and full-CRUD `JdbcSupplierDao` implemented.
-- **Next:** Add `JdbcVerificationDao`/`JdbcAuditDao` and live repository switching in `Main`.
+- **Backend CLI:** Simplified 20-file pure-Java CLI (`Main`, four interactive consoles, `DecayMonitorThread`, `TaskBuffer`, CSV/byte I/O streams, `StreamTokenizer`, 10-group `SupifyTestRunner`, and `run.bat`/`test.bat` with `-cp "bin;lib\*"`) implemented in `backend/`.
+- **Database & JDBC (Phase 1):** MySQL 8.0 schema (9 tables), canonical seeds, views, append-only triggers, decay stored procedure, `setup_mysql.bat`, env-configurable `DatabaseConfig`, and CRUD `JdbcSupplierDao` implemented.
+- **Next:** Extend JDBC persistence across the remaining verification spine tables (`claim`, `evidence`, `verification_check`, `attestation`) and add `--db` mode in `Main`.
