@@ -1,6 +1,6 @@
-# Supify — Database (MySQL 8.0)
+# Supify — MySQL 8.0 Database
 
-MySQL relational schema, canonical seed fixtures, projection views, stored procedures, and append-only ledger triggers for the Supify verification platform.
+Simple 5-table relational database matching our 5 Java model classes (`Supplier`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation`) **1:1**.
 
 ---
 
@@ -9,57 +9,59 @@ MySQL relational schema, canonical seed fixtures, projection views, stored proce
 ```text
 db/
 ├── schema/
-│   └── 01_supify_schema.sql           # Database creation, 9 InnoDB tables, foreign keys, indexes
+│   └── 01_supify_schema.sql       # Drops/recreates supify DB with 5 InnoDB tables
 ├── seeds/
-│   └── 01_canonical_suppliers.sql     # Idempotent canonical suppliers, claims, evidence, checks, attestations
-├── procedures/
-│   └── 01_views_and_procedures.sql    # Views, append-only verification_check triggers, decay procedure
-├── migrations/                        # Future incremental ALTER TABLE scripts
-├── setup_mysql.bat                    # One-click Windows initializer prompting cleanly for password
+│   └── 01_canonical_suppliers.sql # Inserts 5 suppliers, 12 claims, 12 evidence rows, 10 checks, 10 attestations
+├── migrations/                    # Reserved for future scripts
+├── setup_mysql.bat                # One-click Windows initializer
 └── README.md
 ```
 
 ---
 
-## 2. Schema Overview (9 Normalized Tables)
+## 2. Schema Overview (5 Basic Tables)
 
-| Table | Role | Key Integrity Rule |
-| :--- | :--- | :--- |
-| `organisation` | Root legal entity (`legal_name`, `entity_type`, location) | Shared identity for buyers and suppliers |
-| `supplier_profile` | Capability metrics (`category`, capacity, MOQ, lead time) & trust standing | Unique 1:1 extension of `organisation` |
-| `claim` | Layer 1 supplier assertions keyed by data-driven `claim_type_key` | Never carries boolean verification state |
-| `evidence` | Layer 2 evidentiary proof (`storage_ref`, `kind`, `title`, expiry) | Linked via `claim_id` FK |
-| `verification_check` | Layer 3 immutable verification events (`method`, `outcome`, `rationale`) | Protected by `BEFORE UPDATE` & `BEFORE DELETE` triggers |
-| `attestation` | Layer 4 time-bounded standing position (`method_achieved`, `valid_until`, `state`) | Decays to `EXPIRED` when `valid_until < CURRENT_TIMESTAMP` |
-| `verification_task` | Operational verifier queue ordered by `priority DESC`, `sla_due_at ASC` | Tracks single vs `requires_dual` review SLA |
-| `trust_snapshot` | Derived multi-pillar trust summary (`trust_band`, `overall_score`, `pillar_scores_json`) | Rebuildable from `attestation` records |
-| `audit_event` | Strictly increasing audit ledger (`sequence_number AUTO_INCREMENT`) | Records consequential platform actions |
+| # | Table | Java Class | Purpose |
+| :-: | :--- | :--- | :--- |
+| 1 | `supplier` | `Supplier.java` | Supplier profile details + `trust_band` and `trust_score` (no `is_verified` boolean) |
+| 2 | `claim` | `Claim.java` | Layer 1 claims (`claim_type_key`, `pillar`, `status`) linked to `supplier` |
+| 3 | `evidence` | `Evidence.java` | Layer 2 proof files (`title`, `kind`, `storage_ref`) linked to `claim` |
+| 4 | `verification_check` | `VerificationCheck.java` | Layer 3 verifier PASS/FAIL check linked to `claim` |
+| 5 | `attestation` | `Attestation.java` | Layer 4 time-bounded trust badge (`valid_until`, `state`) linked to `claim` & `verification_check` |
+
+*(Audit logs and CSV exports stay flat-file in `backend/data/` via `FileHelper`.)*
 
 ---
 
-## 3. Views, Stored Procedures & Triggers
+## 3. Setup & Display Queries
 
-- **`vw_supplier_catalog`**: Joins `organisation`, `supplier_profile`, and active non-expired attestation counts.
-- **`vw_verifier_queue`**: Joins pending `verification_task` rows with `claim` and attached evidence counts, sorted by priority and SLA deadline.
-- **`trg_verification_check_no_update` / `trg_verification_check_no_delete`**: Enforces append-only immutability on `verification_check` (Axiom A5) via `SQLSTATE '45000'`.
-- **`sp_expire_stale_attestations()`**: Batch-expires `ACTIVE` attestations past `valid_until` and logs a summary row into `audit_event`.
+### Initialize Database
+Run `setup_mysql.bat` from `db\`, enter your MySQL username (default `root`) and password. It loads `schema/01_supify_schema.sql` and `seeds/01_canonical_suppliers.sql`.
 
----
+### Display Data in MySQL (`USE supify;`)
+```sql
+USE supify;
+SHOW TABLES;
 
-## 4. Setup & Backend JDBC Connection
+SELECT * FROM supplier;
+SELECT * FROM claim;
+SELECT * FROM evidence;
+SELECT * FROM verification_check;
+SELECT * FROM attestation;
 
-### Initialize Local MySQL 8.0 Database
-Run `setup_mysql.bat` from `db\` (or double-click in Explorer). It locates `mysql.exe`, prompts for your MySQL username (default `root`) and password once, and loads `schema/`, `seeds/`, and `procedures/` cleanly.
+-- Join all 5 tables together:
+SELECT s.name AS supplier, c.label AS claim, c.status,
+       e.title AS evidence, vc.method, vc.outcome,
+       a.state AS attestation_state, a.valid_until
+FROM supplier s
+JOIN claim c ON c.supplier_id = s.id
+LEFT JOIN evidence e ON e.claim_id = c.id
+LEFT JOIN verification_check vc ON vc.claim_id = c.id
+LEFT JOIN attestation a ON a.claim_id = c.id;
+```
 
-### Configure Backend Credentials
-`DatabaseConfig` reads JVM properties or environment variables before falling back to local defaults:
+### Connect from Java (`JdbcSupplierDao`)
+- Default connection: `jdbc:mysql://localhost:3306/supify?...`, user `root`, password `root` (override password with `SUPIFY_DB_PASS`).
+- Place `mysql-connector-j-*.jar` in `backend/lib/` and run **`Admin Menu [4] -> [4] MySQL JDBC Status`**.
 
-| Setting | JVM Property | Environment Variable | Default |
-| :--- | :--- | :--- | :--- |
-| JDBC URL | `-Dsupify.db.url=...` | `SUPIFY_DB_URL` | `jdbc:mysql://localhost:3306/supify?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC` |
-| DB User | `-Dsupify.db.user=...` | `SUPIFY_DB_USER` | `root` |
-| DB Password | `-Dsupify.db.pass=...` | `SUPIFY_DB_PASS` | `root` |
-
-Place `mysql-connector-j-*.jar` in `backend/lib/` (ignored by git via `.gitignore`). Both `backend/run.bat` and `backend/test.bat` load `-cp "bin;lib\*"` automatically, and **System & Admin → `[6] Database Connection Status`** reports driver availability and live connectivity.
-
-See [`docs/database-architecture.md`](../docs/database-architecture.md) for the full 9-table ER diagram and JDBC execution flow, [`docs/setup.md`](../docs/setup.md) for step-by-step installation, and [`docs/understanding.md`](../docs/understanding.md) §3 for the conceptual domain model.
+See [`docs/database-architecture.md`](../docs/database-architecture.md) for the ER diagram and [`docs/setup.md`](../docs/setup.md) for setup troubleshooting.

@@ -1,5 +1,6 @@
 package com.supify.model;
 
+// Ways a claim can be checked and their trust weights
 public enum VerificationMethod {
     SELF_DECLARED(0.25),
     DOCUMENT_REVIEW(0.60),

@@ -1,5 +1,6 @@
 package com.supify.model;
 
+// Layer 1: claim submitted by a supplier
 public class Claim {
     private final String id;
     private final String supplierId;

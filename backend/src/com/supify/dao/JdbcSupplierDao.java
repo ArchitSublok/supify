@@ -3,62 +3,96 @@ package com.supify.dao;
 import com.supify.model.Supplier;
 import com.supify.model.TrustBand;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
-/** MySQL JDBC CRUD implementation using PreparedStatement, executeQuery/Update, and ResultSet mapping. */
+// Connects to MySQL using JDBC and runs CRUD queries on the supplier table
 public class JdbcSupplierDao implements Repository<Supplier, String> {
+    private static final String DRIVER = "com.mysql.cj.jdbc.Driver";
+    private static final String URL =
+            "jdbc:mysql://localhost:3306/supify?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    private static final String USER = "root";
+    private static final String PASS = "root";
+    private static String lastError = "";
+
+    public static String getUrl() {
+        return URL;
+    }
+
+    public static String getLastError() {
+        return lastError;
+    }
+
+    private static String getPassword() {
+        String envPass = System.getenv("SUPIFY_DB_PASS");
+        if (envPass != null && !envPass.isEmpty()) {
+            return envPass;
+        }
+        return PASS;
+    }
+
+    public static boolean isDriverLoaded() {
+        try {
+            Class.forName(DRIVER);
+            return true;
+        } catch (ClassNotFoundException e) {
+            lastError = "Driver JAR not in lib/: " + DRIVER;
+            return false;
+        }
+    }
+
+    public static Connection getConnection() throws SQLException {
+        try {
+            Class.forName(DRIVER);
+        } catch (ClassNotFoundException e) {
+            lastError = "MySQL driver missing: " + DRIVER;
+            throw new SQLException(lastError, e);
+        }
+        try {
+            Connection conn = DriverManager.getConnection(URL, USER, getPassword());
+            lastError = "";
+            return conn;
+        } catch (SQLException e) {
+            lastError = e.getMessage();
+            throw e;
+        }
+    }
+
+    public static boolean testConnection() {
+        try (Connection conn = getConnection()) {
+            return conn != null && !conn.isClosed();
+        } catch (Exception e) {
+            lastError = e.getMessage();
+            return false;
+        }
+    }
 
     @Override
     public Supplier save(Supplier s) {
-        String orgSql = "INSERT INTO organisation (id, legal_name, trade_name, entity_type, country_code, city) "
-                + "VALUES (?, ?, ?, 'pvt_ltd', 'IN', ?) "
-                + "ON DUPLICATE KEY UPDATE legal_name = ?, trade_name = ?, city = ?";
+        if (findById(s.getId()) != null) {
+            deleteById(s.getId());
+        }
 
-        String profileSql = "INSERT INTO supplier_profile "
-                + "(id, organisation_id, headline, category, capacity_per_month, moq, lead_time, trust_band, overall_trust_score) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE headline = ?, category = ?, capacity_per_month = ?, moq = ?, lead_time = ?, trust_band = ?, overall_trust_score = ?";
+        String sql = "INSERT INTO supplier "
+                + "(id, name, city, category, capacity_per_month, moq, lead_time, trust_band, trust_score) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-        String headline = s.getName() + " - " + s.getCategory();
-
-        try (Connection conn = DatabaseConfig.getConnection()) {
-            try (PreparedStatement psOrg = conn.prepareStatement(orgSql)) {
-                psOrg.setString(1, s.getId());
-                psOrg.setString(2, s.getName());
-                psOrg.setString(3, s.getName());
-                psOrg.setString(4, s.getCity());
-                psOrg.setString(5, s.getName());
-                psOrg.setString(6, s.getName());
-                psOrg.setString(7, s.getCity());
-                psOrg.executeUpdate();
-            }
-            try (PreparedStatement psProf = conn.prepareStatement(profileSql)) {
-                psProf.setString(1, s.getId() + "-PROF");
-                psProf.setString(2, s.getId());
-                psProf.setString(3, headline);
-                psProf.setString(4, s.getCategory());
-                psProf.setInt(5, s.getCapacityPerMonth());
-                psProf.setInt(6, s.getMoq());
-                psProf.setString(7, s.getLeadTime());
-                psProf.setString(8, s.getTrustBand().name());
-                psProf.setDouble(9, s.getTrustScore());
-
-                psProf.setString(10, headline);
-                psProf.setString(11, s.getCategory());
-                psProf.setInt(12, s.getCapacityPerMonth());
-                psProf.setInt(13, s.getMoq());
-                psProf.setString(14, s.getLeadTime());
-                psProf.setString(15, s.getTrustBand().name());
-                psProf.setDouble(16, s.getTrustScore());
-                psProf.executeUpdate();
-            }
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, s.getId());
+            ps.setString(2, s.getName());
+            ps.setString(3, s.getCity());
+            ps.setString(4, s.getCategory());
+            ps.setInt(5, s.getCapacityPerMonth());
+            ps.setInt(6, s.getMoq());
+            ps.setString(7, s.getLeadTime());
+            ps.setString(8, s.getTrustBand().name());
+            ps.setDouble(9, s.getTrustScore());
+            ps.executeUpdate();
             return s;
         } catch (SQLException e) {
             throw new RuntimeException("JDBC save failed: " + e.getMessage(), e);
@@ -66,37 +100,33 @@ public class JdbcSupplierDao implements Repository<Supplier, String> {
     }
 
     @Override
-    public Optional<Supplier> findById(String id) {
-        String sql = "SELECT o.id, o.legal_name, o.city, p.category, p.capacity_per_month, "
-                + "p.moq, p.lead_time, p.trust_band, p.overall_trust_score "
-                + "FROM organisation o "
-                + "JOIN supplier_profile p ON p.organisation_id = o.id "
-                + "WHERE o.id = ?";
+    public Supplier findById(String id) {
+        String sql = "SELECT id, name, city, category, capacity_per_month, "
+                + "moq, lead_time, trust_band, trust_score "
+                + "FROM supplier WHERE id = ?";
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return Optional.of(mapRow(rs));
+                    return mapRow(rs);
                 }
             }
         } catch (SQLException e) {
             throw new RuntimeException("JDBC findById failed: " + e.getMessage(), e);
         }
-        return Optional.empty();
+        return null;
     }
 
     @Override
     public List<Supplier> findAll() {
-        String sql = "SELECT o.id, o.legal_name, o.city, p.category, p.capacity_per_month, "
-                + "p.moq, p.lead_time, p.trust_band, p.overall_trust_score "
-                + "FROM organisation o "
-                + "JOIN supplier_profile p ON p.organisation_id = o.id "
-                + "ORDER BY p.overall_trust_score DESC";
+        String sql = "SELECT id, name, city, category, capacity_per_month, "
+                + "moq, lead_time, trust_band, trust_score "
+                + "FROM supplier ORDER BY trust_score DESC";
         List<Supplier> list = new ArrayList<>();
 
-        try (Connection conn = DatabaseConfig.getConnection();
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
@@ -108,14 +138,9 @@ public class JdbcSupplierDao implements Repository<Supplier, String> {
         return list;
     }
 
-    @Override
-    public List<Supplier> findMatching(Predicate<? super Supplier> filter) {
-        return findAll().stream().filter(filter).collect(Collectors.toList());
-    }
-
     public boolean updateTrust(String supplierId, TrustBand band, double score) {
-        String sql = "UPDATE supplier_profile SET trust_band = ?, overall_trust_score = ? WHERE organisation_id = ?";
-        try (Connection conn = DatabaseConfig.getConnection();
+        String sql = "UPDATE supplier SET trust_band = ?, trust_score = ? WHERE id = ?";
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, band.name());
             ps.setDouble(2, score);
@@ -128,8 +153,8 @@ public class JdbcSupplierDao implements Repository<Supplier, String> {
 
     @Override
     public boolean deleteById(String id) {
-        String sql = "DELETE FROM organisation WHERE id = ?";
-        try (Connection conn = DatabaseConfig.getConnection();
+        String sql = "DELETE FROM supplier WHERE id = ?";
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, id);
             return ps.executeUpdate() > 0;
@@ -140,8 +165,8 @@ public class JdbcSupplierDao implements Repository<Supplier, String> {
 
     @Override
     public long count() {
-        String sql = "SELECT COUNT(*) FROM supplier_profile";
-        try (Connection conn = DatabaseConfig.getConnection();
+        String sql = "SELECT COUNT(*) FROM supplier";
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
@@ -156,7 +181,7 @@ public class JdbcSupplierDao implements Repository<Supplier, String> {
     private Supplier mapRow(ResultSet rs) throws SQLException {
         Supplier s = new Supplier(
                 rs.getString("id"),
-                rs.getString("legal_name"),
+                rs.getString("name"),
                 rs.getString("city"),
                 rs.getString("category"),
                 rs.getInt("capacity_per_month"),
@@ -164,7 +189,7 @@ public class JdbcSupplierDao implements Repository<Supplier, String> {
                 rs.getString("lead_time")
         );
         s.setTrustBand(TrustBand.valueOf(rs.getString("trust_band")));
-        s.setTrustScore(rs.getDouble("overall_trust_score"));
+        s.setTrustScore(rs.getDouble("trust_score"));
         return s;
     }
 }

@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo ==========================================================
-echo   Supify MySQL 8.0 Schema, Seed ^& Procedure Setup
+echo   Supify MySQL 8.0 Setup (5 Basic Tables + Seeds)
 echo ==========================================================
 
 set "MYSQL_EXE="
@@ -27,8 +27,8 @@ set "DB_USER=root"
 set /p DB_USER="Enter MySQL username [root]: "
 
 echo.
-echo Loading schema, canonical seed data, and views/procedures...
-"%MYSQL_EXE%" -u "%DB_USER%" -p -e "SOURCE schema/01_supify_schema.sql; SOURCE seeds/01_canonical_suppliers.sql; SOURCE procedures/01_views_and_procedures.sql;"
+echo Creating 5 tables and loading sample supplier data...
+"%MYSQL_EXE%" -u "%DB_USER%" -p -e "SOURCE schema/01_supify_schema.sql; SOURCE seeds/01_canonical_suppliers.sql;"
 
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] MySQL setup failed.
@@ -37,5 +37,5 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo [OK] Supify MySQL database 'supify' initialized successfully!
+echo [OK] Supify MySQL database 'supify' is ready!
 pause

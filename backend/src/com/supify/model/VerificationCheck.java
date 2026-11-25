@@ -2,7 +2,7 @@ package com.supify.model;
 
 import java.time.LocalDateTime;
 
-/** Immutable record of a verifier decision. Once created, fields cannot be changed. */
+// Layer 3: verifier decision record (final so fields cannot be changed later)
 public final class VerificationCheck {
     private final String id;
     private final String claimId;

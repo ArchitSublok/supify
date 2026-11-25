@@ -1,9 +1,9 @@
 package com.supify.model;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 
-/** Time-bounded attestation issued only after a PASS check. */
+// Layer 4: active trust badge issued after PASS check with an expiry time
 public class Attestation {
     private final String id;
     private final String claimId;
@@ -49,8 +49,10 @@ public class Attestation {
     }
 
     public long secondsLeft() {
-        if (!"ACTIVE".equals(state)) return 0;
-        long sec = ChronoUnit.SECONDS.between(LocalDateTime.now(), validUntil);
+        if (!"ACTIVE".equals(state)) {
+            return 0;
+        }
+        long sec = Duration.between(LocalDateTime.now(), validUntil).getSeconds();
         return Math.max(0, sec);
     }
 }

@@ -13,19 +13,18 @@ supplier-platform/
 ├── src/                        # React frontend (Vite, React Router 6, Tailwind, Zustand)
 ├── public/data/                # JSON fixtures served over HTTP to the frontend
 ├── backend/
-│   ├── src/com/supify/         # Simplified pure-Java CLI, daemons, services, DAOs & tests (20 files)
+│   ├── src/com/supify/         # Pure-Java CLI across 4 packages (15 .java files)
 │   ├── lib/                    # Optional external JARs (mysql-connector-j-*.jar, gitignored)
 │   ├── bin/                    # Compiled .class files (gitignored)
-│   ├── run.bat                 # One-click Windows compile & CLI launcher
-│   ├── test.bat                # One-click Windows compile & automated test runner
-│   └── README.md               # Java backend setup & class reference
+│   ├── run.bat                 # Compile & launch Main
+│   ├── test.bat                # Compile & run TestApp (8 checks)
+│   └── README.md               # Java backend reference
 ├── db/
-│   ├── schema/                 # MySQL 8.0 normalized DDL (01_supify_schema.sql)
-│   ├── seeds/                  # Canonical seed fixtures (01_canonical_suppliers.sql)
-│   ├── procedures/             # Views, decay procedure & append-only triggers
-│   ├── migrations/             # Incremental ALTER TABLE migrations (future)
-│   ├── setup_mysql.bat         # One-click Windows MySQL initializer
-│   └── README.md               # Database structure & credential reference
+│   ├── schema/                 # MySQL 8.0 DDL (01_supify_schema.sql - 5 tables)
+│   ├── seeds/                  # Sample seed data (01_canonical_suppliers.sql)
+│   ├── migrations/             # Incremental scripts (future)
+│   ├── setup_mysql.bat         # One-click MySQL initializer
+│   └── README.md               # Database structure & SQL queries
 └── docs/
     ├── setup.md                # This guide
     ├── understanding.md        # Problem framing, design axioms & trust model
@@ -69,13 +68,13 @@ npm run build
 
 ## 4. Running the Java Backend CLI (`backend/`)
 
-The backend CLI runs completely standalone with zero external dependencies using `InMemoryStore` populated cleanly at startup in `Main.seedSuppliers`.
+The backend CLI runs standalone with zero external JARs using `SupifyPlatform` and `loadSampleData()`.
 
 ### Option A: One-Click Windows Batch Scripts
 
 Inside `backend\`:
-- Double-click **`run.bat`** (or run `.\run.bat`) to compile all sources into `bin\` and launch `com.supify.app.Main`.
-- Double-click **`test.bat`** (or run `.\test.bat`) to compile and run the automated 10-group test suite (`com.supify.test.SupifyTestRunner`).
+- Run **`run.bat`** to compile into `bin\` and start `com.supify.app.Main`.
+- Run **`test.bat`** to compile and run the 8-check test suite (`com.supify.app.TestApp`).
 
 ### Option B: Manual Compile & Run Commands
 
@@ -83,68 +82,50 @@ From `backend\`:
 
 ```bat
 if not exist bin mkdir bin
-javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\test\SupifyTestRunner.java src\com\supify\dao\JdbcSupplierDao.java
+javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\app\TestApp.java src\com\supify\dao\JdbcSupplierDao.java
 java -cp "bin;lib\*" com.supify.app.Main
+java -cp "bin;lib\*" com.supify.app.TestApp
 ```
 
-Run the automated test runner manually:
-
-```bat
-java -cp "bin;lib\*" com.supify.test.SupifyTestRunner
-```
-
-### Quick 60-Second CLI Demo Path
+### Quick CLI Demo Flow
 
 1. Launch `backend\run.bat`.
-2. **Buyer Console (`[1]`):** Choose **`[1] List All Suppliers`** to print all 5 suppliers ranked by trust score, or **`[3]`** on `SUP-1` to inspect the 4-layer Claim → Evidence → VerificationCheck → Attestation chain.
-3. **Supplier & Verifier Flow (`[2]` → `[3]`):** Watch active expiry countdowns under **`[2] → [3]`** (including `SUP-1`'s 30-second attestation decaying via `DecayMonitorThread`), submit a claim with evidence (`[2] → [2]`), and approve it in **`[3] Verifier Console`**.
-4. **System & Admin Tools (`[4]`):** Check active JVM thread states (`[1]`), queue worker coordination (`[2]`), CSV export/import (`[3]`), byte-stream audit log (`[4]`), rule parsing (`[5]`), and MySQL connection status (`[6]`).
+2. **Buyer Menu (`[1]`):** List suppliers (`[1]`), search/sort (`[2]`), inspect `SUP-1`'s 4-layer Claim -> Evidence -> VerificationCheck -> Attestation chain (`[3]`), or compare 2 suppliers (`[4]`).
+3. **Supplier & Verifier Menus (`[2]` -> `[3]`):** Watch active expiry countdowns under `[2] -> [3]` (including `SUP-1`'s 30-second badge decaying via `DecayMonitorThread`), submit a claim with PDF evidence (`[2] -> [2]`), and approve/reject in `[3]`.
+4. **Admin Menu (`[4]`):** View thread status (`[1]`), CSV export/import (`[2]`), plain-text audit log (`[3]`), and MySQL JDBC status (`[4]`).
 
 ---
 
 ## 5. Setting Up MySQL 8.0 & JDBC (`db/`)
 
-### Step 1: Initialize Schema, Seeds & Triggers
+### Step 1: Initialize 5-Table Schema & Seeds
 
 Run **`db\setup_mysql.bat`** (from Explorer or terminal):
-- Detects `mysql.exe` on `PATH` or `C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe`.
-- Prompts once for your MySQL username (default `root`) and password (`-p`).
+- Detects `mysql.exe`, prompts for MySQL username (default `root`) and password (`-p`).
 - Loads in order:
-  1. `db/schema/01_supify_schema.sql` (creates `supify` database + 9 InnoDB tables)
-  2. `db/seeds/01_canonical_suppliers.sql` (seeds 5 canonical suppliers, claims, evidence, checks, attestations, and tasks)
-  3. `db/procedures/01_views_and_procedures.sql` (creates `vw_supplier_catalog`, `vw_verifier_queue`, append-only triggers, and `sp_expire_stale_attestations`)
+  1. `db/schema/01_supify_schema.sql` (recreates `supify` database + 5 basic InnoDB tables: `supplier`, `claim`, `evidence`, `verification_check`, `attestation`)
+  2. `db/seeds/01_canonical_suppliers.sql` (seeds 5 suppliers, 12 claims, 12 evidence rows, 10 checks, and 10 attestations)
 
 ### Step 2: Stage the MySQL JDBC Driver
 
 Copy `mysql-connector-j-*.jar` into **`backend\lib\`** (ignored by `.gitignore`). Both `backend\run.bat` and `backend\test.bat` include `-cp "bin;lib\*"` automatically.
 
-### Step 3: Pass Database Credentials (Optional)
+### Step 3: Optional Password Override
 
-If your local MySQL password differs from `root`, configure environment variables (recommended) or `-D` JVM properties before starting `backend\run.bat`:
+Default JDBC settings in `JdbcSupplierDao` connect to `jdbc:mysql://localhost:3306/supify?...` using user `root` and password `root`. If your MySQL password differs, set `SUPIFY_DB_PASS`:
 
 ```bat
-set SUPIFY_DB_URL=jdbc:mysql://localhost:3306/supify?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-set SUPIFY_DB_USER=root
 set SUPIFY_DB_PASS=your_password
 ```
 
-| Setting | JVM Property | Environment Variable | Default |
-| :--- | :--- | :--- | :--- |
-| JDBC URL | `-Dsupify.db.url=...` | `SUPIFY_DB_URL` | `jdbc:mysql://localhost:3306/supify?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC` |
-| DB User | `-Dsupify.db.user=...` | `SUPIFY_DB_USER` | `root` |
-| DB Password | `-Dsupify.db.pass=...` | `SUPIFY_DB_PASS` | `root` |
+### Step 4: Check Connection Inside the CLI
 
-### Step 4: Verify Driver & Connection Inside the CLI
-
-Launch `backend\run.bat`, open **`[4] System & Admin`**, and select **`[6] Database Connection Status`** to confirm:
-- `Driver Available: true`
-- `DB Connected: true` (once `setup_mysql.bat` has created `supify` and valid credentials are set).
+Launch `backend\run.bat`, open **`[4] Admin Menu`**, and choose **`[4] MySQL JDBC Status`** to check `Driver: true` and `Connected: true`.
 
 ---
 
 ## 6. Windows Troubleshooting
 
-- **`javac` or `mysql` not recognized:** Add your JDK `bin` folder (and `C:\Program Files\MySQL\MySQL Server 8.0\bin`) to Windows `PATH`, or invoke the full binary path.
-- **PowerShell splitting `-cp bin;lib\*`:** Always quote the classpath as **`"bin;lib\*"`** so PowerShell does not interpret `;` as a command separator.
-- **Trigger error when modifying `verification_check`:** By design (`trg_verification_check_no_update` and `trg_verification_check_no_delete`), rows in `verification_check` are append-only. Use `INSERT IGNORE` (as `01_canonical_suppliers.sql` does) when re-seeding.
+- **`javac` or `mysql` not recognized:** Add your JDK `bin` folder and MySQL `bin` folder to Windows `PATH`.
+- **PowerShell splitting `-cp bin;lib\*`:** Always quote `"bin;lib\*"` so PowerShell does not split on `;`.
 - **Stale `.class` files in `backend/bin/`:** Delete `backend/bin/` and re-run `backend\run.bat` for a clean rebuild.

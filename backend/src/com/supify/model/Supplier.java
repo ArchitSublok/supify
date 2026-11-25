@@ -1,5 +1,6 @@
 package com.supify.model;
 
+// Stores basic supplier details and computed trust standing
 public class Supplier {
     private final String id;
     private String name;
@@ -46,7 +47,8 @@ public class Supplier {
 
     @Override
     public String toString() {
-        return String.format("%s | %-28s | %-12s | %-18s | %s (%.2f)",
-                id, name, city, category, trustBand, trustScore);
+        double rounded = Math.round(trustScore * 100.0) / 100.0;
+        return id + " | " + name + " | " + city + " | " + category
+                + " | " + trustBand + " (" + rounded + ")";
     }
 }
