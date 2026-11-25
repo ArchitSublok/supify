@@ -73,7 +73,7 @@ erDiagram
 
 ---
 
-## 2. Java JDBC Connection Flow
+## 2. Java-to-MySQL Mapping & JDBC Execution Flow
 
 ```mermaid
 flowchart LR
@@ -83,5 +83,20 @@ flowchart LR
     DB --> TBL["5 Tables: supplier, claim, evidence, verification_check, attestation"]
 ```
 
-- **`JdbcSupplierDao`** (`backend/src/com/supify/dao/JdbcSupplierDao.java`) handles driver loading (`Class.forName`), `DriverManager.getConnection(...)`, `testConnection()`, and parameterized `PreparedStatement` + `ResultSet` CRUD against the `supplier` table (`save`, `findById`, `findAll`, `updateTrust`, `deleteById`, `count`).
-- No boolean `is_verified` column exists; supplier trust is stored cleanly as `trust_band` + `trust_score` derived from the verification spine (`claim`, `evidence`, `verification_check`, `attestation`).
+| Java Component | MySQL Target / Operation | Purpose |
+| :--- | :--- | :--- |
+| `JdbcSupplierDao.getConnection()` | `Class.forName("com.mysql.cj.jdbc.Driver")` + `DriverManager.getConnection` | Opens TCP JDBC connection to `supify` (reads optional `SUPIFY_DB_PASS`) |
+| `JdbcSupplierDao.save(Supplier)` | `findById` → `deleteById` → parameterized `INSERT INTO supplier ...` | Upserts a supplier row using `PreparedStatement` (`?` binding) and `executeUpdate()` |
+| `JdbcSupplierDao.findById(String)` | `SELECT ... FROM supplier WHERE id = ?` | `executeQuery()` + `if (rs.next())` + `mapRow(rs)` |
+| `JdbcSupplierDao.findAll()` | `SELECT ... FROM supplier ORDER BY trust_score DESC` | `executeQuery()` + `while (rs.next())` + `mapRow(rs)` |
+| `JdbcSupplierDao.updateTrust(...)` | `UPDATE supplier SET trust_band = ?, trust_score = ? WHERE id = ?` | Updates computed trust standing safely |
+| `JdbcSupplierDao.deleteById(String)` | `DELETE FROM supplier WHERE id = ?` | Removes supplier (cascades to `claim` → `evidence`, `verification_check`, `attestation`) |
+| `JdbcSupplierDao.count()` | `SELECT COUNT(*) FROM supplier` | Reads scalar `rs.getLong(1)` |
+
+---
+
+## 3. Domain Invariants in the Schema
+
+- **No boolean verification flag:** `supplier` has no `is_verified` column; standing is explicitly stored as `trust_band` + `trust_score` alongside full audit evidence.
+- **Referential integrity (`FOREIGN KEY`):** `claim`, `evidence`, `verification_check`, and `attestation` cascade cleanly when a parent `supplier`/`claim` is deleted (`ON DELETE CASCADE`), while `attestation.source_check_id` uses `ON DELETE RESTRICT` so an issued attestation cannot lose its underlying check.
+- **Explicit method, rationale, and expiry:** Every check records `method`, `outcome`, `performed_by`, and `rationale`; every attestation records `verified_at`, `valid_until`, `state`, and `issued_by`.

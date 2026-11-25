@@ -27,7 +27,7 @@ scope-control test for the whole project.
 | `docs/backend-architecture.md` | Backend package layers, UML class diagrams, sequence/concurrency/I/O flows | Before writing or extending Java backend code |
 | `docs/database-architecture.md` | MySQL 8.0 ER diagram, JDBC execution flow, and axiom-to-schema mapping | Before modifying SQL or JDBC DAOs |
 | `backend/README.md` | Java CLI setup, Windows batch runners (`run.bat`/`test.bat`), package layout & CLI flows | Compiling, running, or testing `backend/` |
-| `db/README.md` | MySQL schema, canonical seeds, views/triggers/procedures, `setup_mysql.bat` | Initializing or administering MySQL in `db/` |
+| `db/README.md` | MySQL 5-table schema, sample seeds, `setup_mysql.bat`, and verification queries | Initializing or administering MySQL in `db/` |
 
 **Do not duplicate content between these.** If a rule needs to change, change it in one place and
 link. Drift between documents is worse than a missing document.
