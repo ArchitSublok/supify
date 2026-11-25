@@ -8,22 +8,20 @@ import com.supify.dao.Repository;
 import com.supify.exception.SupifyException;
 import com.supify.io.AuditFileIO;
 import com.supify.io.CsvSupplierIO;
-import com.supify.model.Attestation;
 import com.supify.model.Claim;
 import com.supify.model.Evidence;
 import com.supify.model.Supplier;
-import com.supify.model.TrustBand;
 import com.supify.model.VerificationCheck;
 import com.supify.model.VerificationMethod;
 import com.supify.service.SupplierService;
 import com.supify.service.VerificationService;
 import java.io.File;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Scanner;
 
-/** Simple interactive CLI for Supify Supplier Discovery & Evidence Verification. */
+/** Clean interactive CLI for Supify Supplier Discovery & Verification. */
 public class Main {
 
     public static void main(String[] args) {
@@ -36,22 +34,21 @@ public class Main {
 
         DecayMonitorThread monitor = new DecayMonitorThread(store, supplierService, 4000);
         monitor.start();
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> monitor.stopMonitor(), "Shutdown-MonitorStop"));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> monitor.stopMonitor(), "Shutdown-Monitor"));
 
         Scanner sc = new Scanner(System.in);
         boolean running = true;
 
         while (running && sc.hasNextLine()) {
             printAlerts(monitor);
-            System.out.println("\n=== SUPIFY :: Supplier Discovery & Verification CLI ===");
-            System.out.println("  [1] Buyer Console    (List, Search, Claims, Compare)");
-            System.out.println("  [2] Supplier Console (Submit Claim + Evidence, Expiry Timers)");
-            System.out.println("  [3] Verifier Console (Pending Queue, Approve/Reject)");
-            System.out.println("  [4] System & Admin   (Threads, Queue, CSV/Audit Files, Rules, DB)");
+            printHeader("SUPIFY :: Supplier Discovery & Verification");
+            System.out.println("  [1] Buyer Console");
+            System.out.println("  [2] Supplier Console");
+            System.out.println("  [3] Verifier Console");
+            System.out.println("  [4] System & Admin");
             System.out.println("  [0] Exit");
 
-            int choice = readInt(sc, "Select option", 1);
+            int choice = readInt(sc, "Select", 1);
             switch (choice) {
                 case 1 -> buyerMenu(sc, store, supplierService, monitor);
                 case 2 -> supplierMenu(sc, store, verificationService, monitor);
@@ -61,9 +58,9 @@ public class Main {
                     running = false;
                     monitor.stopMonitor();
                     reviewQueue.shutdown();
-                    System.out.println("Stopped background monitor. Goodbye!");
+                    System.out.println("\nSession closed. Goodbye!");
                 }
-                default -> System.out.println("Invalid option.");
+                default -> System.out.println("  Invalid option.");
             }
         }
     }
@@ -71,69 +68,62 @@ public class Main {
     private static void buyerMenu(Scanner sc, InMemoryStore store, SupplierService service, DecayMonitorThread monitor) {
         while (sc.hasNextLine()) {
             printAlerts(monitor);
-            System.out.println("\n--- BUYER CONSOLE ---");
-            System.out.println("  [1] List All Suppliers (Sorted by Trust Score)");
-            System.out.println("  [2] Search & Filter Suppliers");
-            System.out.println("  [3] View Supplier Profile & 4-Layer Claims");
-            System.out.println("  [4] Compare 2 Suppliers Side-by-Side");
+            printHeader("BUYER CONSOLE");
+            System.out.println("  [1] List Suppliers");
+            System.out.println("  [2] Search Suppliers");
+            System.out.println("  [3] Inspect Supplier Claims");
+            System.out.println("  [4] Compare 2 Suppliers");
             System.out.println("  [0] Back");
 
             int ch = readInt(sc, "Choice", 0);
             if (ch == 0) break;
 
-            if (ch == 1) {
-                printSupplierList(service.search("", "", null, null, "score", 1, 20));
-            } else if (ch == 2) {
-                System.out.print("Keyword (e.g. Fasteners, Pune, or ENTER): ");
-                String kw = sc.nextLine();
-                System.out.print("Category (available: " + service.getAllCategories() + " or ENTER): ");
-                String cat = sc.nextLine();
-                int minCap = readInt(sc, "Minimum monthly capacity (0 for any)", 0);
-                System.out.print("Sort by [score / capacity / name]: ");
-                String sort = sc.nextLine();
-                printSupplierList(service.search(kw, cat, null, minCap, sort, 1, 20));
-            } else if (ch == 3) {
-                System.out.print("Enter Supplier ID (e.g. SUP-1): ");
-                String id = sc.nextLine().trim();
-                Optional<Supplier> supOpt = store.findById(id);
-                if (supOpt.isEmpty()) {
-                    System.out.println("Supplier not found: " + id);
-                    continue;
+            switch (ch) {
+                case 1 -> printSupplierTable(service.search("", "", null, null, "score", 1, 20));
+                case 2 -> {
+                    System.out.print("Keyword / city / category (ENTER for all): ");
+                    String kw = sc.nextLine().trim();
+                    int sortChoice = readInt(sc, "Sort by [1=Score, 2=Capacity, 3=Name]", 1);
+                    String sort = switch (sortChoice) {
+                        case 2 -> "capacity";
+                        case 3 -> "name";
+                        default -> "score";
+                    };
+                    printSupplierTable(service.search(kw, "", null, null, sort, 1, 20));
                 }
-                Supplier s = supOpt.get();
-                System.out.println("\n" + s + " | Capacity: " + s.getCapacityPerMonth()
-                        + "/mo | MOQ: " + s.getMoq() + " | Lead: " + s.getLeadTime());
-                for (Claim c : store.getClaimsForSupplier(id)) {
-                    System.out.println("  Claim: " + c);
-                    for (Evidence e : store.getEvidenceForClaim(c.getId())) {
-                        System.out.println("    Evidence: " + e);
+                case 3 -> {
+                    Supplier s = pickSupplier(sc, store, "Select supplier to inspect");
+                    if (s == null) break;
+                    System.out.printf("%n  %s (%s) | %s | Cap: %,d/mo | MOQ: %d | Lead: %s%n",
+                            s.getName(), s.getId(), s.getCity(), s.getCapacityPerMonth(), s.getMoq(), s.getLeadTime());
+                    System.out.printf("  Standing: %s (%.2f)%n", s.getTrustBand(), s.getTrustScore());
+                    for (Claim c : store.getClaimsForSupplier(s.getId())) {
+                        System.out.println("  - " + c);
+                        for (Evidence e : store.getEvidenceForClaim(c.getId())) {
+                            System.out.println("      Evidence : " + e);
+                        }
+                        for (VerificationCheck chk : store.getChecksForClaim(c.getId())) {
+                            System.out.println("      Check    : " + chk);
+                        }
+                        store.getActiveAttestationForClaim(c.getId()).ifPresent(a ->
+                                System.out.println("      Attest   : " + a.getId() + " (" + a.getMethod()
+                                        + ", expires in " + a.secondsLeft() + "s)"));
                     }
-                    for (VerificationCheck chk : store.getChecksForClaim(c.getId())) {
-                        System.out.println("    Check:    " + chk);
-                    }
-                    store.getActiveAttestationForClaim(c.getId()).ifPresent(a ->
-                            System.out.println("    Attest:   " + a.getId() + " (" + a.getMethod()
-                                    + ", expires in " + a.secondsLeft() + "s)"));
                 }
-            } else if (ch == 4) {
-                System.out.print("First Supplier ID (e.g. SUP-1): ");
-                String id1 = sc.nextLine().trim();
-                System.out.print("Second Supplier ID (e.g. SUP-2): ");
-                String id2 = sc.nextLine().trim();
-                Optional<Supplier> s1 = store.findById(id1);
-                Optional<Supplier> s2 = store.findById(id2);
-                if (s1.isEmpty() || s2.isEmpty()) {
-                    System.out.println("Both supplier IDs must exist.");
-                } else {
-                    Supplier a = s1.get(), b = s2.get();
-                    System.out.printf("%-16s | %-28s | %-28s%n", "FIELD", a.getName(), b.getName());
-                    System.out.println("-".repeat(78));
-                    System.out.printf("%-16s | %-28s | %-28s%n", "Trust Band", a.getTrustBand(), b.getTrustBand());
-                    System.out.printf("%-16s | %-28.2f | %-28.2f%n", "Trust Score", a.getTrustScore(), b.getTrustScore());
-                    System.out.printf("%-16s | %-28d | %-28d%n", "Capacity/mo", a.getCapacityPerMonth(), b.getCapacityPerMonth());
-                    System.out.printf("%-16s | %-28d | %-28d%n", "MOQ", a.getMoq(), b.getMoq());
-                    System.out.printf("%-16s | %-28s | %-28s%n", "Lead Time", a.getLeadTime(), b.getLeadTime());
+                case 4 -> {
+                    Supplier a = pickSupplier(sc, store, "First supplier");
+                    if (a == null) break;
+                    Supplier b = pickSupplier(sc, store, "Second supplier");
+                    if (b == null) break;
+                    System.out.printf("%n  %-14s | %-28s | %-28s%n", "FIELD", a.getName(), b.getName());
+                    System.out.println("  " + "-".repeat(76));
+                    System.out.printf("  %-14s | %-28s | %-28s%n", "Trust Band", a.getTrustBand(), b.getTrustBand());
+                    System.out.printf("  %-14s | %-28.2f | %-28.2f%n", "Trust Score", a.getTrustScore(), b.getTrustScore());
+                    System.out.printf("  %-14s | %-28d | %-28d%n", "Capacity/mo", a.getCapacityPerMonth(), b.getCapacityPerMonth());
+                    System.out.printf("  %-14s | %-28d | %-28d%n", "MOQ", a.getMoq(), b.getMoq());
+                    System.out.printf("  %-14s | %-28s | %-28s%n", "Lead Time", a.getLeadTime(), b.getLeadTime());
                 }
+                default -> System.out.println("  Invalid option.");
             }
         }
     }
@@ -143,45 +133,51 @@ public class Main {
         String myId = "SUP-1";
         while (sc.hasNextLine()) {
             printAlerts(monitor);
-            System.out.println("\n--- SUPPLIER CONSOLE (Logged in as " + myId + ") ---");
-            System.out.println("  [1] View My Trust Standing");
-            System.out.println("  [2] Submit New Claim with Evidence");
-            System.out.println("  [3] Check Attestation Expiry Timers");
+            printHeader("SUPPLIER CONSOLE (" + myId + ")");
+            System.out.println("  [1] My Standing");
+            System.out.println("  [2] Submit Claim");
+            System.out.println("  [3] Expiry Timers");
             System.out.println("  [0] Back");
 
             int ch = readInt(sc, "Choice", 0);
             if (ch == 0) break;
 
-            if (ch == 1) {
-                store.findById(myId).ifPresent(System.out::println);
-            } else if (ch == 2) {
-                System.out.print("Pillar [IDENTITY / LEGAL / QUALITY / CAPABILITY]: ");
-                String pillar = sc.nextLine().trim();
-                if (pillar.isEmpty()) pillar = "QUALITY";
-                System.out.print("Claim label (e.g. ISO 45001 Safety): ");
-                String label = sc.nextLine().trim();
-                if (label.isEmpty()) label = "ISO 45001 Safety";
-                System.out.print("Certificate value/number: ");
-                String val = sc.nextLine().trim();
-                if (val.isEmpty()) val = "OHS-2026-01";
-                System.out.print("Document title: ");
-                String docTitle = sc.nextLine().trim();
-                if (docTitle.isEmpty()) docTitle = label + " PDF";
+            switch (ch) {
+                case 1 -> store.findById(myId).ifPresent(s ->
+                        System.out.println("\n  " + s + " | Claims: " + store.getClaimsForSupplier(myId).size()));
+                case 2 -> {
+                    int p = readInt(sc, "Pillar [1=IDENTITY, 2=LEGAL, 3=QUALITY, 4=CAPABILITY]", 3);
+                    String pillar = switch (p) {
+                        case 1 -> "IDENTITY";
+                        case 2 -> "LEGAL";
+                        case 4 -> "CAPABILITY";
+                        default -> "QUALITY";
+                    };
+                    System.out.print("Claim label (ENTER for 'ISO 45001 Safety'): ");
+                    String label = sc.nextLine().trim();
+                    if (label.isEmpty()) label = "ISO 45001 Safety";
 
-                try {
-                    Claim c = verificationService.submitClaim(myId, label.toLowerCase().replace(" ", "_"),
-                            label, pillar, val, docTitle, "PDF", "docs/" + docTitle + ".pdf");
-                    System.out.println("Submitted claim " + c.getId() + " for verification review.");
-                } catch (SupifyException e) {
-                    System.out.println("[ERROR] " + e.getMessage());
+                    System.out.print("Certificate value (ENTER for 'OHS-2026-01'): ");
+                    String val = sc.nextLine().trim();
+                    if (val.isEmpty()) val = "OHS-2026-01";
+
+                    try {
+                        Claim c = verificationService.submitClaim(myId, label.toLowerCase().replace(" ", "_"),
+                                label, pillar, val, label + " PDF", "PDF", "docs/" + label + ".pdf");
+                        System.out.println("  Submitted " + c.getId() + " with PDF evidence for verifier review.");
+                    } catch (SupifyException e) {
+                        System.out.println("  [ERROR] " + e.getMessage());
+                    }
                 }
-            } else if (ch == 3) {
-                System.out.println("\nActive Attestation Countdowns:");
-                for (Claim c : store.getClaimsForSupplier(myId)) {
-                    store.getActiveAttestationForClaim(c.getId()).ifPresent(a ->
-                            System.out.println("  " + c.getLabel() + " -> " + a.getState()
-                                    + " (" + a.secondsLeft() + "s remaining)"));
+                case 3 -> {
+                    System.out.println("\n  Active Attestation Countdowns:");
+                    for (Claim c : store.getClaimsForSupplier(myId)) {
+                        store.getActiveAttestationForClaim(c.getId()).ifPresent(a ->
+                                System.out.println("  - " + c.getLabel() + " -> " + a.getState()
+                                        + " (" + a.secondsLeft() + "s left)"));
+                    }
                 }
+                default -> System.out.println("  Invalid option.");
             }
         }
     }
@@ -190,8 +186,8 @@ public class Main {
                                      DecayMonitorThread monitor) {
         while (sc.hasNextLine()) {
             printAlerts(monitor);
-            System.out.println("\n--- VERIFIER CONSOLE ---");
-            System.out.println("  [1] View Pending Claims");
+            printHeader("VERIFIER CONSOLE");
+            System.out.println("  [1] Pending Claims");
             System.out.println("  [2] Approve / Reject Claim");
             System.out.println("  [0] Back");
 
@@ -201,39 +197,50 @@ public class Main {
             List<Claim> pending = store.getPendingClaims();
             if (ch == 1) {
                 if (pending.isEmpty()) {
-                    System.out.println("No pending claims.");
+                    System.out.println("  No pending claims.");
                 } else {
                     for (Claim c : pending) {
-                        System.out.println("  " + c + " | Supplier=" + c.getSupplierId());
+                        System.out.println("  - " + c + " | Supplier: " + c.getSupplierId());
                         for (Evidence e : store.getEvidenceForClaim(c.getId())) {
-                            System.out.println("     Proof: " + e);
+                            System.out.println("      Proof: " + e);
                         }
                     }
                 }
             } else if (ch == 2) {
-                System.out.print("Enter Claim ID to verify (e.g. CLM-104): ");
-                String claimId = sc.nextLine().trim();
-                System.out.print("Method [1=DOCUMENT_REVIEW, 2=THIRD_PARTY_API, 3=HUMAN_AUDIT, 4=SITE_VISIT]: ");
-                int m = readInt(sc, "Method", 1);
+                if (pending.isEmpty()) {
+                    System.out.println("  No pending claims.");
+                    continue;
+                }
+                Claim target = pickPendingClaim(sc, pending);
+                if (target == null) continue;
+
+                int m = readInt(sc, "Method [1=DOC, 2=API, 3=AUDIT, 4=SITE]", 1);
                 VerificationMethod method = switch (m) {
                     case 2 -> VerificationMethod.THIRD_PARTY_API;
                     case 3 -> VerificationMethod.HUMAN_AUDIT;
                     case 4 -> VerificationMethod.SITE_VISIT;
                     default -> VerificationMethod.DOCUMENT_REVIEW;
                 };
-                System.out.print("Approve? (Y/N): ");
-                boolean approved = sc.nextLine().trim().equalsIgnoreCase("Y");
-                System.out.print("Verification note: ");
+
+                System.out.print("Approve? (Y/N) [Y]: ");
+                String ans = sc.nextLine().trim();
+                boolean approved = ans.isEmpty() || ans.equalsIgnoreCase("Y");
+
+                System.out.print("Note (ENTER for default): ");
                 String note = sc.nextLine().trim();
                 if (note.isEmpty()) note = "Reviewed uploaded proof against registry.";
 
                 try {
                     VerificationCheck check = verificationService.verifyClaim(
-                            claimId, "Verifier-01", method, approved, note, 86400);
-                    System.out.println("Saved check: " + check);
+                            target.getId(), "Verifier-01", method, approved, note, 86400);
+                    System.out.println("  Saved: " + check);
+                    store.findById(target.getSupplierId()).ifPresent(s ->
+                            System.out.printf("  Updated %s -> %s (%.2f)%n", s.getId(), s.getTrustBand(), s.getTrustScore()));
                 } catch (SupifyException e) {
-                    System.out.println("[ERROR] " + e.getMessage());
+                    System.out.println("  [ERROR] " + e.getMessage());
                 }
+            } else {
+                System.out.println("  Invalid option.");
             }
         }
     }
@@ -241,13 +248,13 @@ public class Main {
     private static void toolsMenu(Scanner sc, InMemoryStore store, DecayMonitorThread monitor) {
         while (sc.hasNextLine()) {
             printAlerts(monitor);
-            System.out.println("\n--- SYSTEM & ADMIN TOOLS ---");
-            System.out.println("  [1] Active JVM Thread States");
-            System.out.println("  [2] Verification Queue Worker Check");
-            System.out.println("  [3] Export & Import Supplier CSV");
-            System.out.println("  [4] Write & Read Audit Log");
-            System.out.println("  [5] Parse Verification Rule");
-            System.out.println("  [6] Database Connection Status");
+            printHeader("SYSTEM & ADMIN");
+            System.out.println("  [1] Active Threads");
+            System.out.println("  [2] Queue Worker Check");
+            System.out.println("  [3] CSV Export / Import");
+            System.out.println("  [4] Audit Log");
+            System.out.println("  [5] Parse Rule");
+            System.out.println("  [6] DB Status");
             System.out.println("  [0] Back");
 
             int ch = readInt(sc, "Choice", 0);
@@ -262,41 +269,86 @@ public class Main {
                         CsvSupplierIO.exportToCsv(csvFile, store.findAll());
                         List<Supplier> imported = CsvSupplierIO.importFromCsv(csvFile);
                         List<String> names = Repository.mapList(imported, Supplier::getName);
-                        System.out.println("Exported & imported " + imported.size() + " suppliers: " + names);
+                        System.out.println("  Synced " + imported.size() + " suppliers: " + names);
                     } catch (IOException e) {
-                        System.out.println("[ERROR] CSV I/O failed: " + e.getMessage());
+                        System.out.println("  [ERROR] CSV error: " + e.getMessage());
                     }
                 }
                 case 4 -> {
                     File logFile = new File("data/audit.log");
                     try {
-                        AuditFileIO.appendAuditByteLog(logFile, "CLI byte stream check executed.");
-                        System.out.println("--- data/audit.log ---\n" + AuditFileIO.readAuditByteLog(logFile));
+                        AuditFileIO.appendAuditByteLog(logFile, "System checkpoint logged.");
+                        System.out.println("\n--- data/audit.log ---\n" + AuditFileIO.readAuditByteLog(logFile));
                     } catch (IOException e) {
-                        System.out.println("[ERROR] Byte stream failed: " + e.getMessage());
+                        System.out.println("  [ERROR] Audit log error: " + e.getMessage());
                     }
                 }
                 case 5 -> {
-                    System.out.print("Enter rule (ENTER for 'CAPACITY >= 50000 AND SCORE >= 0.80'): ");
+                    System.out.print("Rule (ENTER for 'CAPACITY >= 50000 AND SCORE >= 0.80'): ");
                     String rule = sc.nextLine().trim();
                     if (rule.isEmpty()) rule = "CAPACITY >= 50000 AND SCORE >= 0.80";
                     try {
-                        System.out.println("Tokens: " + AuditFileIO.tokenizeRule(rule));
+                        System.out.println("  Tokens: " + AuditFileIO.tokenizeRule(rule));
                     } catch (IOException e) {
-                        System.out.println("[ERROR] Tokenizer failed: " + e.getMessage());
+                        System.out.println("  [ERROR] Rule parse error: " + e.getMessage());
                     }
                 }
                 case 6 -> {
-                    System.out.println("JDBC URL:         " + DatabaseConfig.getUrl());
-                    System.out.println("Driver Available: " + DatabaseConfig.isDriverAvailable());
-                    System.out.println("DB Connected:     " + DatabaseConfig.testConnection());
+                    System.out.println("  JDBC URL : " + DatabaseConfig.getUrl());
+                    System.out.println("  Driver   : " + DatabaseConfig.isDriverAvailable());
+                    System.out.println("  Connected: " + DatabaseConfig.testConnection());
                     if (!DatabaseConfig.getLastError().isBlank()) {
-                        System.out.println("Note:             " + DatabaseConfig.getLastError());
+                        System.out.println("  Note     : " + DatabaseConfig.getLastError());
                     }
                 }
-                default -> System.out.println("Invalid option.");
+                default -> System.out.println("  Invalid option.");
             }
         }
+    }
+
+    private static Supplier pickSupplier(Scanner sc, InMemoryStore store, String label) {
+        List<Supplier> all = store.findAll();
+        all.sort(Comparator.comparing(Supplier::getId));
+        System.out.println();
+        for (int i = 0; i < all.size(); i++) {
+            Supplier s = all.get(i);
+            System.out.printf("  [%d] %s | %s (%s)%n", i + 1, s.getId(), s.getName(), s.getTrustBand());
+        }
+        System.out.print(label + " [1]: ");
+        if (!sc.hasNextLine()) return null;
+        String input = sc.nextLine().trim();
+        if (input.isEmpty()) return all.isEmpty() ? null : all.get(0);
+        try {
+            int idx = Integer.parseInt(input) - 1;
+            if (idx >= 0 && idx < all.size()) return all.get(idx);
+        } catch (NumberFormatException ignored) {
+        }
+        return store.findById(input.toUpperCase()).orElseGet(() -> {
+            System.out.println("  Supplier not found: " + input);
+            return null;
+        });
+    }
+
+    private static Claim pickPendingClaim(Scanner sc, List<Claim> pending) {
+        System.out.println();
+        for (int i = 0; i < pending.size(); i++) {
+            Claim c = pending.get(i);
+            System.out.printf("  [%d] %s | %s | %s [%s]%n", i + 1, c.getId(), c.getSupplierId(), c.getLabel(), c.getPillar());
+        }
+        System.out.print("Select claim [1]: ");
+        if (!sc.hasNextLine()) return null;
+        String input = sc.nextLine().trim();
+        if (input.isEmpty()) return pending.get(0);
+        try {
+            int idx = Integer.parseInt(input) - 1;
+            if (idx >= 0 && idx < pending.size()) return pending.get(idx);
+        } catch (NumberFormatException ignored) {
+        }
+        for (Claim c : pending) {
+            if (c.getId().equalsIgnoreCase(input)) return c;
+        }
+        System.out.println("  Claim not found: " + input);
+        return null;
     }
 
     private static void runProducerConsumerDemo() {
@@ -306,24 +358,24 @@ public class Main {
                 for (int i = 1; i <= 4; i++) {
                     String job = "Verify-Job-" + i;
                     buffer.produce(job);
-                    System.out.println("  [Producer] Added " + job);
+                    System.out.println("  [Queued]    " + job);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-        }, "Demo-Producer");
+        }, "Queue-Producer");
 
         Thread consumer = new Thread(() -> {
             try {
                 for (int i = 1; i <= 4; i++) {
                     String job = buffer.consume();
-                    System.out.println("  [Consumer] Processed " + job);
+                    System.out.println("  [Processed] " + job);
                     Thread.sleep(100);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-        }, "Demo-Consumer");
+        }, "Queue-Consumer");
 
         producer.start();
         consumer.start();
@@ -331,26 +383,36 @@ public class Main {
             producer.join(3000);
             consumer.join(3000);
             buffer.shutdown();
-            System.out.println("Producer-Consumer coordination complete.");
+            System.out.println("  Queue worker check complete.");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
 
-    private static void printSupplierList(List<Supplier> list) {
+    private static void printSupplierTable(List<Supplier> list) {
         if (list.isEmpty()) {
-            System.out.println("No matching suppliers.");
+            System.out.println("  No matching suppliers.");
             return;
         }
-        System.out.println();
-        for (Supplier s : list) {
-            System.out.println("  " + s);
+        System.out.printf("%n  %-2s | %-6s | %-28s | %-12s | %-16s | %-10s | %-5s%n",
+                "#", "ID", "SUPPLIER", "CITY", "CATEGORY", "BAND", "SCORE");
+        System.out.println("  " + "-".repeat(94));
+        for (int i = 0; i < list.size(); i++) {
+            Supplier s = list.get(i);
+            System.out.printf("  %-2d | %-6s | %-28s | %-12s | %-16s | %-10s | %.2f%n",
+                    i + 1, s.getId(), s.getName(), s.getCity(), s.getCategory(), s.getTrustBand(), s.getTrustScore());
         }
+    }
+
+    private static void printHeader(String title) {
+        System.out.println("\n" + "=".repeat(80));
+        System.out.println("  " + title);
+        System.out.println("=".repeat(80));
     }
 
     private static void printAlerts(DecayMonitorThread monitor) {
         for (String alert : monitor.drainAlerts()) {
-            System.out.println("\n[ALERT] " + alert);
+            System.out.println("\n  [ALERT] " + alert);
         }
     }
 
