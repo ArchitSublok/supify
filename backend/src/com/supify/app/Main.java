@@ -29,7 +29,7 @@ public class Main {
 
         try (Scanner sc = new Scanner(System.in)) {
             boolean running = true;
-            while (running && sc.hasNextLine()) {
+            while (running) {
                 showAlerts(platform);
                 printHeader("SUPIFY :: Supplier Verification CLI");
                 System.out.println("  [1] Buyer Menu");
@@ -38,7 +38,10 @@ public class Main {
                 System.out.println("  [4] Admin Menu");
                 System.out.println("  [0] Exit");
 
-                int choice = readInt(sc, "Select", 1);
+                int choice = readInt(sc, "Select [0-4]", -1);
+                if (choice == -2) {
+                    break;
+                }
                 switch (choice) {
                     case 1:
                         buyerMenu(sc, platform);
@@ -68,7 +71,7 @@ public class Main {
     }
 
     private static void buyerMenu(Scanner sc, SupifyPlatform platform) {
-        while (sc.hasNextLine()) {
+        while (true) {
             showAlerts(platform);
             printHeader("BUYER MENU");
             System.out.println("  [1] List Suppliers");
@@ -77,17 +80,19 @@ public class Main {
             System.out.println("  [4] Compare 2 Suppliers");
             System.out.println("  [0] Back");
 
-            int ch = readInt(sc, "Choice", 0);
-            if (ch == 0) {
+            int ch = readInt(sc, "Choice [0-4]", -1);
+            if (ch == -2 || ch == 0) {
                 break;
             }
             if (ch == 1) {
                 printSuppliers(platform.search("", null, "score"));
             } else if (ch == 2) {
                 System.out.print("Keyword / city / category (ENTER for all): ");
+                System.out.flush();
                 if (!sc.hasNextLine()) break;
                 String kw = sc.nextLine().trim();
                 int s = readInt(sc, "Sort [1=Score, 2=Capacity, 3=Name]", 1);
+                if (s == -2) break;
                 String sort = "score";
                 if (s == 2) sort = "capacity";
                 else if (s == 3) sort = "name";
@@ -112,7 +117,7 @@ public class Main {
 
     private static void supplierMenu(Scanner sc, SupifyPlatform platform) {
         String myId = "SUP-1";
-        while (sc.hasNextLine()) {
+        while (true) {
             showAlerts(platform);
             printHeader("SUPPLIER MENU (" + myId + ")");
             System.out.println("  [1] My Standing");
@@ -120,8 +125,8 @@ public class Main {
             System.out.println("  [3] Active Expiry Timers");
             System.out.println("  [0] Back");
 
-            int ch = readInt(sc, "Choice", 0);
-            if (ch == 0) {
+            int ch = readInt(sc, "Choice [0-3]", -1);
+            if (ch == -2 || ch == 0) {
                 break;
             }
             if (ch == 1) {
@@ -131,13 +136,16 @@ public class Main {
                 }
             } else if (ch == 2) {
                 System.out.print("Claim title (e.g. ISO 14001): ");
+                System.out.flush();
                 if (!sc.hasNextLine()) break;
                 String label = sc.nextLine().trim();
                 System.out.print("Pillar [IDENTITY / LEGAL / QUALITY / CAPABILITY]: ");
+                System.out.flush();
                 if (!sc.hasNextLine()) break;
                 String pillar = sc.nextLine().trim().toUpperCase();
                 if (pillar.isEmpty()) pillar = "QUALITY";
                 System.out.print("Certificate / value: ");
+                System.out.flush();
                 if (!sc.hasNextLine()) break;
                 String val = sc.nextLine().trim();
                 try {
@@ -168,15 +176,15 @@ public class Main {
     }
 
     private static void verifierMenu(Scanner sc, SupifyPlatform platform) {
-        while (sc.hasNextLine()) {
+        while (true) {
             showAlerts(platform);
             printHeader("VERIFIER MENU");
             System.out.println("  [1] Pending Claims");
             System.out.println("  [2] Approve / Reject Claim");
             System.out.println("  [0] Back");
 
-            int ch = readInt(sc, "Choice", 0);
-            if (ch == 0) {
+            int ch = readInt(sc, "Choice [0-2]", -1);
+            if (ch == -2 || ch == 0) {
                 break;
             }
             List<Claim> pending = platform.getPendingClaims();
@@ -200,7 +208,7 @@ public class Main {
     }
 
     private static void adminMenu(Scanner sc, SupifyPlatform platform, DecayMonitorThread monitor) {
-        while (sc.hasNextLine()) {
+        while (true) {
             showAlerts(platform);
             printHeader("ADMIN MENU");
             System.out.println("  [1] Thread Status");
@@ -209,8 +217,8 @@ public class Main {
             System.out.println("  [4] MySQL JDBC Status");
             System.out.println("  [0] Back");
 
-            int ch = readInt(sc, "Choice", 0);
-            if (ch == 0) {
+            int ch = readInt(sc, "Choice [0-4]", -1);
+            if (ch == -2 || ch == 0) {
                 break;
             }
             if (ch == 1) {
@@ -292,7 +300,9 @@ public class Main {
             Claim c = pending.get(i);
             System.out.println("  [" + (i + 1) + "] " + c.getId() + " | " + c.getSupplierId() + " | " + c.getLabel());
         }
-        int idx = readInt(sc, "Select claim", 1) - 1;
+        int sel = readInt(sc, "Select claim", 1);
+        if (sel == -2) return;
+        int idx = sel - 1;
         if (idx < 0 || idx >= pending.size()) {
             System.out.println("  Invalid claim number.");
             return;
@@ -300,17 +310,20 @@ public class Main {
         Claim target = pending.get(idx);
 
         int m = readInt(sc, "Method [1=DOC, 2=API, 3=AUDIT, 4=SITE]", 1);
+        if (m == -2) return;
         VerificationMethod method = VerificationMethod.DOCUMENT_REVIEW;
         if (m == 2) method = VerificationMethod.THIRD_PARTY_API;
         else if (m == 3) method = VerificationMethod.HUMAN_AUDIT;
         else if (m == 4) method = VerificationMethod.SITE_VISIT;
 
         System.out.print("Approve? (Y/N) [Y]: ");
+        System.out.flush();
         if (!sc.hasNextLine()) return;
         String ans = sc.nextLine().trim();
         boolean approved = ans.isEmpty() || ans.equalsIgnoreCase("Y");
 
         System.out.print("Note (ENTER for default): ");
+        System.out.flush();
         if (!sc.hasNextLine()) return;
         String note = sc.nextLine().trim();
         if (note.isEmpty()) note = "Reviewed uploaded proof.";
@@ -335,7 +348,9 @@ public class Main {
             Supplier s = all.get(i);
             System.out.println("  [" + (i + 1) + "] " + s.getId() + " | " + s.getName() + " (" + s.getTrustBand() + ")");
         }
-        int idx = readInt(sc, label, 1) - 1;
+        int sel = readInt(sc, label, 1);
+        if (sel == -2) return null;
+        int idx = sel - 1;
         if (idx >= 0 && idx < all.size()) {
             return all.get(idx);
         }
@@ -367,15 +382,24 @@ public class Main {
         }
     }
 
-    private static int readInt(Scanner sc, String prompt, int fallback) {
-        System.out.print(prompt + " [" + fallback + "]: ");
-        if (!sc.hasNextLine()) return fallback;
+    private static int readInt(Scanner sc, String prompt, int defaultVal) {
+        if (defaultVal >= 0) {
+            System.out.print(prompt + " [" + defaultVal + "]: ");
+        } else {
+            System.out.print(prompt + ": ");
+        }
+        System.out.flush();
+        if (!sc.hasNextLine()) {
+            return -2;
+        }
         String input = sc.nextLine().trim();
-        if (input.isEmpty()) return fallback;
+        if (input.isEmpty()) {
+            return defaultVal;
+        }
         try {
             return Integer.parseInt(input);
         } catch (NumberFormatException e) {
-            return fallback;
+            return -1;
         }
     }
 }
