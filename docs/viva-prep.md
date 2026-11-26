@@ -1,7 +1,7 @@
 # Supify — Pure-Java Backend & Database Viva Preparation Guide
 
 > **Complete Topic-by-Topic Revision Book | Plain-English Explanations, Spoken Answers & Rapid-Fire Q&As**  
-> Aligned 100% to the simplified **15-file pure-Java backend** (`backend/src/com/supify/` across **4 packages**: `model`, `dao`, `service`, `app`) and **5-table MySQL 8.0 schema** (`db/`).
+> Aligned 100% to the pure-Java CLI backend (`backend/src/com/supify/` across **4 packages**: `model`, `dao`, `service`, `app`) and **5-table MySQL 8.0 schema** (`db/`).
 
 ---
 
@@ -15,19 +15,19 @@ Two phrases examiners love:
 - **Asymmetry Razor:** *"Every feature cuts either the cost of **finding** a supplier or the cost of **trusting** one."*
 - **Authority Split:** *"The supplier asserts (`Claim` + `Evidence`); the platform attests (`VerificationCheck` + `Attestation`)."*
 
-### 4 Packages, 15 Java Files (`backend/src/com/supify/`)
+### 4 Packages (`backend/src/com/supify/`)
 
-| Package | Files | Core Topics Demonstrated |
+| Package | Classes | Core Topics Demonstrated |
 | :--- | :--- | :--- |
 | `com.supify.model` (7) | `TrustBand`, `VerificationMethod`, `Supplier`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation` | OOP, Encapsulation, Rich Enums with fields, `final` class immutability, `synchronized` state methods, `LocalDateTime` & `Duration` |
 | `com.supify.dao` (3) | `Repository<T, ID>`, `FileHelper`, `JdbcSupplierDao` | Generics (`<T, ID>`), Character File I/O (`FileWriter`/`FileReader` + `BufferedWriter`/`BufferedReader` + append mode), Collections CSV integration, JDBC (`Class.forName`, `DriverManager`, `PreparedStatement`, `ResultSet`, CRUD) |
 | `com.supify.service` (3) | `SupifyException`, `SupifyPlatform`, `DecayMonitorThread` | Custom checked exception (`extends Exception` + cause chaining), `HashMap`/`ArrayList`, `synchronized`, Java Stream API + lambdas (`search`), Authority Split, Trust Capping, Daemon Thread (`extends Thread`, `setDaemon(true)`, `volatile`, `sleep`, `interrupt`) |
-| `com.supify.app` (2) | `Main`, `TestApp` | Interactive menus (`Scanner`, `switch`/`case`), try-with-resources & `finally` shutdown cleanup, lambda comparator sorting, 8-check test suite |
+| `com.supify.app` (1) | `Main` | Interactive menus (`Scanner`, `switch`/`case`, flushed non-blocking prompts), try-with-resources & `finally` shutdown cleanup, lambda comparator sorting |
 
 ### Live CLI Demo Path (`backend/`)
 
-- **Launch CLI:** `run.bat` (silently compiles into `bin/` and launches `com.supify.app.Main` with `-cp "bin;lib\*"`)
-- **Run Automated Tests:** `test.bat` (runs `com.supify.app.TestApp` — **8 PASSED, 0 FAILED**)
+- **Launch CLI:** `backend\run.bat` (compiles into `bin/` and launches `com.supify.app.Main` with `-cp "bin;lib\*"`)
+- **Initialize MySQL DB:** `db\setup_mysql.bat` (creates 5 InnoDB tables & seeds 49 rows across `supplier`, `claim`, `evidence`, `verification_check`, `attestation`)
 
 | Menu | Keys to Press | What Happens Live |
 | :--- | :--- | :--- |
@@ -100,7 +100,7 @@ Inside `SupifyPlatform.recalculateTrust(supplierId)`, only **`ACTIVE`** attestat
   - *Runtime (Overriding):* `@Override run()` in `DecayMonitorThread`; `@Override save/findById/findAll/deleteById/count` in both `SupifyPlatform` and `JdbcSupplierDao`; `@Override toString()` in `Supplier`, `Claim`, `Evidence`, `VerificationCheck`.
 - **Strings, Arrays, Wrappers & Rich Enums:**
   - *String & Immutability:* `String` is immutable (pooled in String Constant Pool, safe as `HashMap<String, Supplier>` keys and JDBC SQL templates); `.trim()`, `.toLowerCase()`, `.equalsIgnoreCase()` are used across `SupifyPlatform` and `FileHelper`. Always compare strings with `.equals()`, never `==`!
-  - *Arrays:* `String[] args` in `Main`/`TestApp`, and `String[] parts = line.split(",")` in `FileHelper.importFromCsv`.
+  - *Arrays:* `String[] args` in `Main`, and `String[] parts = line.split(",")` in `FileHelper.importFromCsv`.
   - *Wrappers:* `Integer.parseInt`, `Double.parseDouble` convert CSV strings back into primitives inside `FileHelper`. Remember `Integer` caches `-128..127`!
   - *Rich Enums:* `TrustBand` (`UNVERIFIED(0)..AUDITED(3)`) and `VerificationMethod` (`SELF_DECLARED(0.25)..SITE_VISIT(1.00)`) carry fields, constructors, and getters (`getLevel()`, `getScore()`).
 
@@ -276,17 +276,13 @@ Inside `SupifyPlatform.recalculateTrust(supplierId)`, only **`ACTIVE`** attestat
 
 ---
 
-## Topic 8: `TestApp` 8-Check Verification & 1-Minute Cheat Sheet
+## Topic 8: Live Demo Walkthrough & 1-Minute Viva Cheat Sheet
 
-`TestApp.java` runs cleanly via `backend\test.bat` with zero external test frameworks (**8 PASSED, 0 FAILED**):
-1. Seed Data & Generic `Repository` (`save`, `findById`, `deleteById`, `count() == 5`)
-2. Stream Search & Sorting (`search`, `TrustBand` threshold, `getAllCategories`)
-3. 4-Layer Spine (`Claim → Evidence → VerificationCheck → Attestation`)
-4. Trust Band Capping (`UNVERIFIED ≤ 0.30`, `BASIC ≤ 0.65`) & `REJECTED` verdict
-5. Daemon Auto-Decay (`DecayMonitorThread.isDaemon()`, 1s expiry → `EXPIRED` + alert)
-6. CSV Export/Import + malformed row skip + append-mode `audit.log` (`FileHelper`)
-7. Checked `SupifyException` validation guards (missing IDs, blank labels, blank notes)
-8. JDBC Config & Driver Check (`JdbcSupplierDao.getUrl()`, `isDriverLoaded()`)
+Run **`backend\run.bat`** (after initializing MySQL via **`db\setup_mysql.bat`**) to demonstrate every architectural pillar live:
+1. **Buyer Menu (`[1]`):** List all 5 seeded suppliers ranked by `trustScore`, run Stream search/sort (`[2]`), inspect `SUP-1`'s 4-layer `Claim → Evidence → VerificationCheck → Attestation` chain (`[3]`), and compare 2 suppliers (`[4]`).
+2. **Supplier Menu (`[2]`):** Check standing (`[1]`), submit a new `SUBMITTED` claim + PDF proof (`[2]`), and watch `SUP-1`'s 30-second capacity attestation tick down (`[3]`).
+3. **Verifier Menu (`[3]`):** Inspect pending proof (`[1]`), approve with `HUMAN_AUDIT` (`[2]`), and watch `TrustBand` / `trustScore` recalculate immediately.
+4. **Admin Menu (`[4]`):** Show `main` + `DecayMonitor` daemon thread status (`[1]`), sync `data/suppliers.csv` (`[2]`), append/read `data/audit.log` (`[3]`), and confirm live MySQL JDBC `Driver: true` + `Connected: true` (`[4]`).
 
 | Topic Asked by Examiner | Point Directly To |
 | :--- | :--- |

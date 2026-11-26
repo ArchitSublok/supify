@@ -13,11 +13,10 @@ supplier-platform/
 ├── src/                        # React frontend (Vite, React Router 6, Tailwind, Zustand)
 ├── public/data/                # JSON fixtures served over HTTP to the frontend
 ├── backend/
-│   ├── src/com/supify/         # Pure-Java CLI across 4 packages (15 .java files)
+│   ├── src/com/supify/         # Pure-Java CLI across 4 packages (model, dao, service, app)
 │   ├── lib/                    # Optional external JARs (mysql-connector-j-*.jar, gitignored)
 │   ├── bin/                    # Compiled .class files (gitignored)
 │   ├── run.bat                 # Compile & launch Main
-│   ├── test.bat                # Compile & run TestApp (8 checks)
 │   └── README.md               # Java backend reference
 ├── db/
 │   ├── schema/                 # MySQL 8.0 DDL (01_supify_schema.sql - 5 tables)
@@ -70,11 +69,10 @@ npm run build
 
 The backend CLI runs standalone with zero external JARs using `SupifyPlatform` and `loadSampleData()`.
 
-### Option A: One-Click Windows Batch Scripts
+### Option A: One-Click Windows Batch Script
 
 Inside `backend\`:
 - Run **`run.bat`** to compile into `bin\` and start `com.supify.app.Main`.
-- Run **`test.bat`** to compile and run the 8-check test suite (`com.supify.app.TestApp`).
 
 ### Option B: Manual Compile & Run Commands
 
@@ -82,9 +80,8 @@ From `backend\`:
 
 ```bat
 if not exist bin mkdir bin
-javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\app\TestApp.java src\com\supify\dao\JdbcSupplierDao.java
+javac -d bin -sourcepath src src\com\supify\app\Main.java src\com\supify\dao\JdbcSupplierDao.java
 java -cp "bin;lib\*" com.supify.app.Main
-java -cp "bin;lib\*" com.supify.app.TestApp
 ```
 
 ### Quick CLI Demo Flow
@@ -108,7 +105,7 @@ Run **`db\setup_mysql.bat`** (from Explorer or terminal):
 
 ### Step 2: Stage the MySQL JDBC Driver
 
-Copy `mysql-connector-j-*.jar` into **`backend\lib\`** (ignored by `.gitignore`). Both `backend\run.bat` and `backend\test.bat` include `-cp "bin;lib\*"` automatically.
+Copy `mysql-connector-j-*.jar` into **`backend\lib\`** (ignored by `.gitignore`). `backend\run.bat` includes `-cp "bin;lib\*"` automatically.
 
 ### Step 3: Optional Password Override
 

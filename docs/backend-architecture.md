@@ -1,35 +1,47 @@
 # Supify — Java Backend Architecture
 
-Architecture summary for the 15-file pure-Java backend under `backend/src/com/supify/` (**4 packages**: `model`, `dao`, `service`, `app`).
+Architecture specification for the pure-Java CLI backend under `backend/src/com/supify/` (**4 packages**: `model`, `dao`, `service`, `app`).
 
 ---
 
-## 1. 4-Package Architecture
+## 1. 4-Package Layered Architecture
 
 ```mermaid
 flowchart TD
-    APP["app (Main, TestApp)"] --> SVC["service (SupifyPlatform, DecayMonitorThread, SupifyException)"]
-    APP --> DAO["dao (Repository, FileHelper, JdbcSupplierDao)"]
-    APP --> MODEL["model (7 Spine Entities & Enums)"]
+    APP["com.supify.app<br/>Main (Interactive 4-Role CLI)"]
+    SVC["com.supify.service<br/>SupifyPlatform · DecayMonitorThread · SupifyException"]
+    DAO["com.supify.dao<br/>Repository&lt;T, ID&gt; · FileHelper · JdbcSupplierDao"]
+    MODEL["com.supify.model<br/>Supplier · Claim · Evidence · VerificationCheck<br/>Attestation · TrustBand · VerificationMethod"]
+    FS[("Local File I/O<br/>data/suppliers.csv &amp; data/audit.log")]
+    DB[("MySQL 8.0 (supify)<br/>5 InnoDB Tables via JDBC :3306")]
 
+    APP --> SVC
+    APP --> DAO
+    APP --> MODEL
     SVC --> DAO
     SVC --> MODEL
     DAO --> MODEL
+    DAO --> FS
+    DAO --> DB
 ```
 
-| Package | Files | Role |
+| Package | Classes | Responsibility |
 | :--- | :--- | :--- |
-| `com.supify.model` | `TrustBand`, `VerificationMethod`, `Supplier`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation` | 4-layer verification spine & enums |
-| `com.supify.dao` | `Repository<T, ID>`, `FileHelper`, `JdbcSupplierDao` | Generic CRUD contract, CSV/log File I/O, MySQL JDBC CRUD |
-| `com.supify.service` | `SupifyException`, `SupifyPlatform`, `DecayMonitorThread` | Custom checked exception, shared synchronized platform (storage, Stream search, trust rules), daemon thread |
-| `com.supify.app` | `Main`, `TestApp` | Interactive console menus and 8 automated checks |
+| `com.supify.model` | `TrustBand`, `VerificationMethod`, `Supplier`, `Claim`, `Evidence`, `VerificationCheck`, `Attestation` | 4-layer verification spine domain entities & weighted enums |
+| `com.supify.dao` | `Repository<T, ID>`, `FileHelper`, `JdbcSupplierDao` | Generic CRUD interface, buffered CSV/audit File I/O, MySQL 8.0 JDBC CRUD |
+| `com.supify.service` | `SupifyException`, `SupifyPlatform`, `DecayMonitorThread` | Custom checked exception, shared synchronized platform (storage, Stream search, trust rules), background daemon |
+| `com.supify.app` | `Main` | Interactive console entry point (`Buyer`, `Supplier`, `Verifier`, `Admin` menus with flushed prompts) |
 
 ---
 
-## 2. Complete UML Class Diagram (15 Files)
+## 2. Reconstructed UML Class Diagram
+
+![Supify UML Class Diagram](../albums/diagrams/supify_uml_class_diagram.png)
 
 ```mermaid
 classDiagram
+    direction TB
+
     class TrustBand {
         <<enumeration>>
         UNVERIFIED(0)
@@ -61,7 +73,10 @@ classDiagram
         -String leadTime
         -TrustBand trustBand
         -double trustScore
+        +getId() String
+        +getTrustBand() TrustBand
         +setTrustBand(TrustBand) void
+        +getTrustScore() double
         +setTrustScore(double) void
     }
 
@@ -83,17 +98,20 @@ classDiagram
         -String title
         -String docType
         -String filePath
+        +getClaimId() String
     }
 
     class VerificationCheck {
-        <<final>>
-        -String id
-        -String claimId
-        -VerificationMethod method
-        -String outcome
-        -String verifierName
-        -LocalDateTime checkedAt
-        -String note
+        <<final / immutable>>
+        -final String id
+        -final String claimId
+        -final VerificationMethod method
+        -final String outcome
+        -final String verifierName
+        -final LocalDateTime checkedAt
+        -final String note
+        +getOutcome() String
+        +getMethod() VerificationMethod
     }
 
     class Attestation {
@@ -120,12 +138,12 @@ classDiagram
     }
 
     class SupifyPlatform {
-        -Map suppliers
-        -Map claims
-        -List evidences
-        -List checks
-        -Map attestations
-        -List alerts
+        -Map~String,Supplier~ suppliers
+        -Map~String,Claim~ claims
+        -List~Evidence~ evidences
+        -List~VerificationCheck~ checks
+        -Map~String,Attestation~ attestations
+        -List~String~ alerts
         -int idCounter
         +nextId(String prefix) String
         +loadSampleData() void
@@ -141,6 +159,9 @@ classDiagram
     class JdbcSupplierDao {
         -String DRIVER$
         -String URL$
+        -String USER$
+        -String PASS$
+        +getUrl()$ String
         +isDriverLoaded()$ boolean
         +getConnection()$ Connection
         +testConnection()$ boolean
@@ -153,10 +174,10 @@ classDiagram
     }
 
     class FileHelper {
-        +exportToCsv(File, List)$ void
-        +importFromCsv(File)$ List~Supplier~
-        +appendAuditLog(File, String)$ void
-        +readAuditLog(File)$ List~String~
+        +exportToCsv(File file, List~Supplier~ suppliers)$ void
+        +importFromCsv(File file)$ List~Supplier~
+        +appendAuditLog(File file, String entry)$ void
+        +readAuditLog(File file)$ List~String~
     }
 
     class DecayMonitorThread {
@@ -175,37 +196,38 @@ classDiagram
 
     class Main {
         +main(String[] args)$ void
+        -buyerMenu(Scanner sc, SupifyPlatform p)$ void
+        -supplierMenu(Scanner sc, SupifyPlatform p)$ void
+        -verifierMenu(Scanner sc, SupifyPlatform p)$ void
+        -adminMenu(Scanner sc, SupifyPlatform p, DecayMonitorThread m)$ void
+        -readInt(Scanner sc, String prompt, int defaultVal)$ int
     }
 
-    class TestApp {
-        +main(String[] args)$ void
-    }
-
-    Supplier --> TrustBand
-    VerificationCheck --> VerificationMethod
-    Attestation --> VerificationMethod
+    Supplier --> TrustBand : has standing
+    VerificationCheck --> VerificationMethod : uses
+    Attestation --> VerificationMethod : weighted by
     Supplier "1" o-- "0..*" Claim : submits
     Claim "1" o-- "0..*" Evidence : backed by
     Claim "1" o-- "0..*" VerificationCheck : audited by
     VerificationCheck "1" --> "0..1" Attestation : issues on PASS
-    Repository <|.. SupifyPlatform
-    Repository <|.. JdbcSupplierDao
-    Thread <|-- DecayMonitorThread
-    Exception <|-- SupifyException
-    SupifyPlatform --> Supplier
-    SupifyPlatform --> Claim
-    SupifyPlatform --> Evidence
-    SupifyPlatform --> VerificationCheck
-    SupifyPlatform --> Attestation
-    SupifyPlatform ..> SupifyException
-    DecayMonitorThread --> SupifyPlatform
-    Main ..> SupifyPlatform
-    Main ..> DecayMonitorThread
-    Main ..> FileHelper
-    Main ..> JdbcSupplierDao
-    TestApp ..> SupifyPlatform
-    TestApp ..> FileHelper
-    TestApp ..> JdbcSupplierDao
+
+    Repository <|.. SupifyPlatform : implements
+    Repository <|.. JdbcSupplierDao : implements
+    Thread <|-- DecayMonitorThread : extends
+    Exception <|-- SupifyException : extends
+
+    SupifyPlatform *-- Supplier : manages
+    SupifyPlatform *-- Claim : manages
+    SupifyPlatform *-- Evidence : manages
+    SupifyPlatform *-- VerificationCheck : manages
+    SupifyPlatform *-- Attestation : manages
+    SupifyPlatform ..> SupifyException : throws
+    DecayMonitorThread --> SupifyPlatform : polls every 4s
+
+    Main ..> SupifyPlatform : orchestrates
+    Main ..> DecayMonitorThread : starts / stops
+    Main ..> FileHelper : CSV & audit I/O
+    Main ..> JdbcSupplierDao : JDBC status
 ```
 
 ---
@@ -214,32 +236,32 @@ classDiagram
 
 ```mermaid
 sequenceDiagram
-    participant S as Supplier / Main
-    participant V as Verifier / Main
+    participant S as Supplier (Main)
+    participant V as Verifier (Main)
     participant SP as SupifyPlatform (synchronized)
     participant DM as DecayMonitorThread (daemon)
 
-    Note over S,SP: Write Authority Split - Suppliers never write checks or attestations
+    Note over S,SP: Authority Split — Suppliers never write checks or attestations
     S->>SP: submitClaim(SUP-1, label, pillar, val, proof)
     SP-->>S: Claim(SUBMITTED) + Evidence saved
 
     V->>SP: verifyClaim(claimId, Verifier-01, SITE_VISIT, true, note, 30s)
     SP->>SP: Save immutable final VerificationCheck(PASS)
     SP->>SP: Issue Attestation(ACTIVE, validUntil = now + 30s)
-    SP->>SP: Claim.setStatus(VERIFIED) and recalculateTrust(SUP-1)
+    SP->>SP: Claim.setStatus(VERIFIED) & recalculateTrust(SUP-1)
     SP-->>V: Return VerificationCheck
 
     loop Every 4000ms while running
         DM->>SP: checkExpiredAttestations()
         alt validUntil passed on ACTIVE attestation
             SP->>SP: att.expireIfNeeded() -> EXPIRED
-            SP->>SP: claim.setStatus(EXPIRED) and recalculateTrust(supplierId)
+            SP->>SP: claim.setStatus(EXPIRED) & recalculateTrust(supplierId)
             SP->>SP: Queue alert in alerts list
         end
     end
 
     S->>SP: getAndClearAlerts()
-    SP-->>S: Print expiry [ALERT] at top of next menu loop
+    SP-->>S: Print expiry [ALERT] before next menu prompt
 ```
 
 ---
@@ -247,10 +269,11 @@ sequenceDiagram
 ## 4. Concurrency, File I/O & Trust Calculation Rules
 
 ### Concurrency & Synchronization
-- **Shared Monitor (`SupifyPlatform`):** All state mutations and snapshots (`nextId`, `save`, `findAll`, `submitClaim`, `verifyClaim`, `recalculateTrust`, `checkExpiredAttestations`, `getAndClearAlerts`) are `synchronized` on the shared `SupifyPlatform` instance, preventing race conditions between the `main` interactive thread and the `DecayMonitor` thread.
-- **Model-Level Synchronization & Volatile Signal:** `DecayMonitorThread` uses `setDaemon(true)` and `volatile boolean running = true` for immediate cross-thread stop visibility (`stopMonitor()` sets `running = false` and calls `interrupt()`). Mutable status fields on `Attestation`, `Claim`, and `Supplier` also synchronize their state transitions (`expireIfNeeded()`, `revoke()`, `setStatus()`, `setTrustBand()`).
+- **Shared Monitor (`SupifyPlatform`):** All state mutations and snapshots (`nextId`, `save`, `findAll`, `submitClaim`, `verifyClaim`, `recalculateTrust`, `checkExpiredAttestations`, `getAndClearAlerts`) are `synchronized` on the shared `SupifyPlatform` instance, preventing race conditions between the `main` interactive thread and `DecayMonitor`.
+- **Model-Level Synchronization & Volatile Signal:** `DecayMonitorThread` uses `setDaemon(true)` and `volatile boolean running = true` for immediate cross-thread shutdown (`stopMonitor()` sets `running = false` and calls `interrupt()`). Mutable status fields on `Attestation`, `Claim`, and `Supplier` also synchronize their state transitions (`expireIfNeeded()`, `revoke()`, `setStatus()`, `setTrustBand()`).
+- **Non-Blocking Interactive Prompts (`Main.java`):** Menu loops print prompts and call `System.out.flush()` before reading from `Scanner`, returning `-2` on EOF so the CLI exits cleanly without blocking before showing prompts.
 
-### Trust Calculation & Capping (`SupifyPlatform.recalculateTrust`)
+### Trust Calculation & Pillar Capping (`SupifyPlatform.recalculateTrust`)
 Only **`ACTIVE`** attestations contribute to trust:
 
 ```text
@@ -266,5 +289,5 @@ avgScore = min(1.0, sum(method.getScore()) / max(3, activeCount))
 
 ### Character File I/O (`FileHelper`)
 - **CSV Export (`exportToCsv`):** Writes `List<Supplier>` via `BufferedWriter(new FileWriter(file))` inside `try-with-resources`, sanitizing commas (`clean()`) so fields stay column-aligned.
-- **CSV Import (`importFromCsv`):** Reads `data/suppliers.csv` via `BufferedReader(new FileReader(file))`, skips the header and blank lines, splits fields, and wraps `Integer.parseInt` / `Double.parseDouble` / `TrustBand.valueOf` in a row-level `catch (IllegalArgumentException)` so bad lines are skipped gracefully.
+- **CSV Import (`importFromCsv`):** Reads `data/suppliers.csv` via `BufferedReader(new FileReader(file))`, skips the header and blank lines, splits fields, and wraps parsing in a row-level `catch (IllegalArgumentException)` so malformed rows are skipped safely.
 - **Append Audit Log (`appendAuditLog` / `readAuditLog`):** Uses `new FileWriter(file, true)` inside `BufferedWriter` to append timestamped audit lines to `data/audit.log` without overwriting earlier history.
